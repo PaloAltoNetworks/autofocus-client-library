@@ -105,32 +105,36 @@ class AutoFocusAPI(object):
         # first arg to the protected _api_search method
         path = args.pop(0)
 
-        # Just do an or here, we'll do validation below
-        if "field" in kwargs or "value" in kwargs:
-            args.append(kwargs)
-            
-        post_data = {
-            "query": {
-                "operator": cls.search_operator,
-                "children": []
+        if len(args) == 1:
+            post_data = {
+                "query" : json.loads(args[0])
             }
-        }
+        else:
+            # Just do an or here, we'll do validation below
+            if "field" in kwargs or "value" in kwargs:
+                args.append(kwargs)
+                
+            post_data = {
+                "query": {
+                    "operator": cls.search_operator,
+                    "children": []
+                }
+            }
 
-        for kwarg in args:        
- 
-            # Check and make sure field and value are passed to search - req'd
-            for arg in ('field', 'value'):
-                if arg not in kwarg:
-                    raise Exception
+            for kwarg in args:        
+     
+                # Check and make sure field and value are passed to search - req'd
+                for arg in ('field', 'value'):
+                    if arg not in kwarg:
+                        raise Exception
 
-            # Build the searching paramaters to be passed to the _api_request method
-            # _api_request will add the additional data needed to form a valid request
-            post_data['query']['children'].append({
-                "field": kwarg['field'],
-                "operator": kwarg.get('operator', "is"),
-                "value": kwarg['value']
-            })
-            
+                # Build the searching paramaters to be passed to the _api_request method
+                # _api_request will add the additional data needed to form a valid request
+                post_data['query']['children'].append({
+                    "field": kwarg['field'],
+                    "operator": kwarg.get('operator', "is"),
+                    "value": kwarg['value']
+                })
 
         for res in cls._api_search_request(path, post_data = post_data):
             for hit in res['hits']:
