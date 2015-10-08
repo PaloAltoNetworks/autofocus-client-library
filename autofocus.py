@@ -70,12 +70,12 @@ class AutoFocusAPI(object):
         }
         post_data['scope'] = "Global"
 
+        resp_data = cls._api_request(path, post_data = post_data)
+        af_cookie = resp_data['af_cookie']
+
         while True:
 
-            resp_data = cls._api_request(path, post_data = post_data)
-
             post_data['from'] += post_data['size']
-            af_cookie = resp_data['af_cookie']
 
             resp = {} 
 
@@ -86,12 +86,12 @@ class AutoFocusAPI(object):
                 resp = requests.post(results_url, headers = _headers \
                             , data = json.dumps({ "apiKey" : AF_APIKEY })).json()
 
-                if 'hits' not in resp and resp['af_in_progress']:
+                if 'hits' not in resp and resp.get('af_in_progress', None):
                     continue
                 else:
                     break
 
-            if not resp['hits']:
+            if not resp.get('hits', None):
                 raise StopIteration()
             
             yield resp
