@@ -1,5 +1,5 @@
 #!/usr/bin/env python2.7
-from autofocus import AFSample
+from autofocus import AFSample, AFClientError
 
 query = """
 {
@@ -20,9 +20,12 @@ query = """
 """
 
 i = 0
-for sample in AFSample.search(query):
+try:
+    for sample in AFSample.search(query):
 
-  i += 1
-  #print sample.md5
+      i += 1
+      #print sample.md5
+except AFClientError as e:
+  print e
 
 print "%d samples" % (i,)
