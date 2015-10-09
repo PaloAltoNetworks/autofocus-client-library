@@ -100,7 +100,7 @@ class AutoFocusAPI(object):
                 except ClientError as e:
                     if "AF Cookie Not Found" in e.message:
                         raise ClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds" \
-                                        % (i, time.time() - init_query_time))
+                                        % (i, time.time() - init_query_time), e.resp)
                     else:
                         raise e
 
