@@ -56,7 +56,7 @@ class AutoFocusAPI(object):
         if resp.status_code >= 500 and resp.status_code < 600:
             raise ServerError(resp._content)
 
-        return resp.json()
+        return resp
 
     @classmethod
     def _api_search_request(cls, path, post_data):
@@ -69,31 +69,50 @@ class AutoFocusAPI(object):
             }
         }
         post_data['scope'] = "Global"
-
-        resp_data = cls._api_request(path, post_data = post_data)
-        af_cookie = resp_data['af_cookie']
+        total_results = 0
 
         while True:
 
+            init_query_resp = cls._api_request(path, post_data = post_data)
+            init_query_data = init_query_resp.json()
             post_data['from'] += post_data['size']
+            af_cookie = init_query_data['af_cookie']
 
-            resp = {} 
+            resp = {}
+            prev_resp = {}
+            i = 0
+            while True:
 
-            while True: 
+                i += 1
 
-                results_url = _base_url + "/" + path.split("/")[1] + "/results/" + af_cookie
-                
-                resp = requests.post(results_url, headers = _headers \
-                            , data = json.dumps({ "apiKey" : AF_APIKEY })).json()
+                request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
-                if 'hits' not in resp and resp.get('af_in_progress', None):
-                    continue
-                else:
+                # Try our request. Check for AF Cookie going away, which is weird
+                # Catch it and add more context. Then throw it up again
+                try:
+                    resp = cls._api_request(request_url).json()
+                except ClientRequestError as e:
+                    if "AF Cookie Not Found" in e.message:
+                        raise ClientRequestError("Auto Focus Cookie has gone away after %d queries " % (i,))
+                    else:
+                        raise e
+
+                # If we've gotten our bucket size worth of data, or the query has complete
+                if len(resp.get('hits', [])) == post_data['size'] \
+                        or resp.get('af_complete_percentage', 100) == 100:
+                    print resp['total']
                     break
 
+                prev_resp = resp
+
+                continue
+
             if not resp.get('hits', None):
+                pprint(resp, width=1)
                 raise StopIteration()
-            
+
+            hit_length = len(resp['hits'])
+
             yield resp
 
     @classmethod
@@ -175,7 +194,7 @@ class AFTag(AutoFocusAPI):
         kwargs['pageSize'] = kwargs.get("pageSize", 1000)
         kwargs['pageNum'] = kwargs.get("pageNum", 0)
                               
-        resp = cls._api_request("/tags/", params = kwargs)
+        resp = cls._api_request("/tags/", params = kwargs).json()
         results = []
 
         for tag in resp['tags']:
@@ -186,7 +205,7 @@ class AFTag(AutoFocusAPI):
     @classmethod
     def get(cls, tag_name):
 
-        resp = cls._api_request("/tag/" + tag_name)
+        resp = cls._api_request("/tag/" + tag_name).json()
 
         return AFTag(**resp['tag'])            
 
@@ -202,8 +221,8 @@ class AFSample(AutoFocusAPI):
 
     def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp"]):
 
-        resp = self._api_request("/sample/" + self.sha256 + "/analysis", \
-                    post_data = { "sections" : sections, "platforms" : platforms })
+        resp = self.__class__._api_request("/sample/" + self.sha256 + "/analysis", \
+                    post_data = { "sections" : sections, "platforms" : platforms }).json()
 
         return resp
                               
