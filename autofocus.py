@@ -76,7 +76,6 @@ class AutoFocusAPI(object):
             }
         }
         post_data['scope'] = "Global"
-        total_results = 0
 
         while True:
 
@@ -118,8 +117,6 @@ class AutoFocusAPI(object):
 
             if not resp_data.get('hits', None):
                 raise StopIteration()
-
-            hit_length = len(resp_data['hits'])
 
             yield resp_data
 
