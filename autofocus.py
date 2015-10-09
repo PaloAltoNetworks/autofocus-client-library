@@ -86,8 +86,8 @@ class AutoFocusAPI(object):
             post_data['from'] += post_data['size']
             af_cookie = init_query_data['af_cookie']
 
-            resp = {}
-            prev_resp = {}
+            resp_data = {}
+            prev_resp_data = {}
             i = 0
             while True:
 
@@ -98,29 +98,30 @@ class AutoFocusAPI(object):
                 # Try our request. Check for AF Cookie going away, which is weird
                 # Catch it and add more context. Then throw it up again
                 try:
-                    resp = cls._api_request(request_url).json()
+                    resp = cls._api_request(request_url)
+                    resp_data = resp.json()
                 except AFClientError as e:
                     if "AF Cookie Not Found" in e.message:
-                        raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds" \
-                                        % (i, time.time() - init_query_time), e.resp)
+                        raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
+                                        % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.resp)
                     else:
                         raise e
 
                 # If we've gotten our bucket size worth of data, or the query has complete
-                if len(resp.get('hits', [])) == post_data['size'] \
-                        or resp.get('af_complete_percentage', 100) == 100:
+                if len(resp_data.get('hits', [])) == post_data['size'] \
+                        or resp_data.get('af_complete_percentage', 100) == 100:
                     break
 
-                prev_resp = resp
+                prev_resp_data = resp_data
 
                 continue
 
-            if not resp.get('hits', None):
+            if not resp_data.get('hits', None):
                 raise StopIteration()
 
-            hit_length = len(resp['hits'])
+            hit_length = len(resp_data['hits'])
 
-            yield resp
+            yield resp_data
 
     @classmethod
     def _api_search(cls, *args, **kwargs):
