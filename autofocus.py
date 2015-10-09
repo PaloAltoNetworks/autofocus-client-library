@@ -19,15 +19,17 @@ _headers = {"Content-Type" : "application/json"}
 class NotLoaded(object):
     pass
 
-class ClientError(Exception):
+class AFClientError(Exception):
     def __init__(self, message, resp = None):
-        super(ClientError, self).__init__(self, message)
+        super(AFClientError, self).__init__(self, message)
         self.resp = resp
+        self.message = message
 
-class ServerError(Exception):
+class AFServerError(Exception):
     def __init__(self, message, resp):
-        super(ServerError, self).__init__(self, message)
+        super(AFServerError, self).__init__(self, message)
         self.resp = resp
+        self.message = message
 
 
 class AutoFocusAPI(object):
@@ -56,10 +58,10 @@ class AutoFocusAPI(object):
         resp = requests.post(_base_url + path, params = params, headers=_headers, data=json.dumps(post_data))
 
         if resp.status_code >= 400 and resp.status_code < 500:
-            raise ClientError(resp._content, resp)
+            raise AFClientError(resp._content, resp)
         
         if resp.status_code >= 500 and resp.status_code < 600:
-            raise ServerError(resp._content, resp)
+            raise AFServerError(resp._content, resp)
 
         return resp
 
@@ -97,9 +99,9 @@ class AutoFocusAPI(object):
                 # Catch it and add more context. Then throw it up again
                 try:
                     resp = cls._api_request(request_url).json()
-                except ClientError as e:
+                except AFClientError as e:
                     if "AF Cookie Not Found" in e.message:
-                        raise ClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds" \
+                        raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds" \
                                         % (i, time.time() - init_query_time), e.resp)
                     else:
                         raise e
