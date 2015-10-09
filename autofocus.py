@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import requests, json, sys
+import requests, json, sys, time
 from pprint import pprint
 import autofocus_config
 
@@ -20,10 +20,15 @@ class NotLoaded(object):
     pass
 
 class ClientError(Exception):
-    pass
+    def __init__(self, message, resp = None):
+        super(ClientError, self).__init__(self, message)
+        self.resp = resp
 
 class ServerError(Exception):
-    pass
+    def __init__(self, message, resp):
+        super(ServerError, self).__init__(self, message)
+        self.resp = resp
+
 
 class AutoFocusAPI(object):
 
@@ -51,10 +56,10 @@ class AutoFocusAPI(object):
         resp = requests.post(_base_url + path, params = params, headers=_headers, data=json.dumps(post_data))
 
         if resp.status_code >= 400 and resp.status_code < 500:
-            raise ClientError(resp._content)
+            raise ClientError(resp._content, resp)
         
         if resp.status_code >= 500 and resp.status_code < 600:
-            raise ServerError(resp._content)
+            raise ServerError(resp._content, resp)
 
         return resp
 
@@ -73,6 +78,7 @@ class AutoFocusAPI(object):
 
         while True:
 
+            init_query_time = time.time()
             init_query_resp = cls._api_request(path, post_data = post_data)
             init_query_data = init_query_resp.json()
             post_data['from'] += post_data['size']
@@ -93,7 +99,8 @@ class AutoFocusAPI(object):
                     resp = cls._api_request(request_url).json()
                 except ClientError as e:
                     if "AF Cookie Not Found" in e.message:
-                        raise ClientError("Auto Focus Cookie has gone away after %d queries " % (i,))
+                        raise ClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds" \
+                                        % (i, time.time() - init_query_time))
                     else:
                         raise e
 
