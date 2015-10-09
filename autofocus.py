@@ -19,7 +19,7 @@ _headers = {"Content-Type" : "application/json"}
 class NotLoaded(object):
     pass
 
-class ClientRequestError(Exception):
+class ClientError(Exception):
     pass
 
 class ServerError(Exception):
@@ -51,7 +51,7 @@ class AutoFocusAPI(object):
         resp = requests.post(_base_url + path, params = params, headers=_headers, data=json.dumps(post_data))
 
         if resp.status_code >= 400 and resp.status_code < 500:
-            raise ClientRequestError(resp._content)
+            raise ClientError(resp._content)
         
         if resp.status_code >= 500 and resp.status_code < 600:
             raise ServerError(resp._content)
@@ -91,9 +91,9 @@ class AutoFocusAPI(object):
                 # Catch it and add more context. Then throw it up again
                 try:
                     resp = cls._api_request(request_url).json()
-                except ClientRequestError as e:
+                except ClientError as e:
                     if "AF Cookie Not Found" in e.message:
-                        raise ClientRequestError("Auto Focus Cookie has gone away after %d queries " % (i,))
+                        raise ClientError("Auto Focus Cookie has gone away after %d queries " % (i,))
                     else:
                         raise e
 
