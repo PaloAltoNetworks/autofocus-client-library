@@ -107,7 +107,6 @@ class AutoFocusAPI(object):
                 # If we've gotten our bucket size worth of data, or the query has complete
                 if len(resp.get('hits', [])) == post_data['size'] \
                         or resp.get('af_complete_percentage', 100) == 100:
-                    print resp['total']
                     break
 
                 prev_resp = resp
@@ -115,7 +114,6 @@ class AutoFocusAPI(object):
                 continue
 
             if not resp.get('hits', None):
-                pprint(resp, width=1)
                 raise StopIteration()
 
             hit_length = len(resp['hits'])
