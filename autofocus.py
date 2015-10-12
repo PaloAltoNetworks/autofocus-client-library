@@ -79,6 +79,16 @@ class AutoFocusAPI(object):
 
         while True:
 
+            # There is currently a hardcoded limitation for 4000 samples per query.
+            # Hardcode StopIteration until that issue is addressed
+            if post_data['from'] >= 4000:
+                raise StopIteration()
+
+            if post_data['from'] + post_data['size'] > 4000:
+                post_data['size'] = 4000 - post_data['from']
+
+            # TODO: Remove the above logic once the result cap is removed
+
             init_query_time = time.time()
             init_query_resp = cls._api_request(path, post_data = post_data)
             init_query_data = init_query_resp.json()
