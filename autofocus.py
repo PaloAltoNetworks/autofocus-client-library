@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import requests, json, sys, time
+import requests, json, sys, time, re
 from pprint import pprint
 import autofocus_config
 
@@ -247,12 +247,44 @@ class AFSample(AutoFocusAPI):
         for res in cls._api_search("/samples/search", *args, **kwargs):
             yield AFSample(**res['_source'])
 
+    @classmethod
+    def get(cls, hash):
+
+        if not re.match(r'^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$', hash):
+            raise KeyError("Argument mush be a valid md5, sha1, or sha256 hash")
+
+        res = None
+
+        try:
+            if len(hash) == 32:
+                res = cls.search(field = "sample.md5", value = hash).next()
+            elif len(hash) == 40:
+                res = cls.search(field = "sample.sha1", value = hash).next()
+            elif len(hash) == 64:
+                res = cls.search(field = "sample.sha256", value = hash).next()
+        except StopIteration:
+            pass
+
+        if not res:
+            raise KeyError("No such hash found in AutoFocus")
+
+        return res
+
 if __name__ == "__main__":
 
-    i = 0
-    for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
-        i += 1
-        pprint(sample.__dict__)
-        pprint(sample.get_analyses())
+#    i = 0
+#    for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
+#        i += 1
+#        pprint(sample.__dict__)
+#        pprint(sample.get_analyses())
+#    print "%d results" % (i,)
 
-    print "%d results" % (i,)
+    # Get a sample by hash
+    sample = AFSample.get("585fa6e62424037461b8cb9e6b59597e54f2b74510b1efea2a14be4f58bae4eb")
+    print sample.md5
+
+    sample = AFSample.get("7c49955374b0b8105d6ca34dafeb3769")
+    print sample.sha1
+
+    sample = AFSample.get("bd3ccbddd8e3da2f4de04974e744e2a776539cf5")
+    print sample.sha256
