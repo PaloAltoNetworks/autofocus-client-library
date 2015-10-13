@@ -110,6 +110,7 @@ class AutoFocusAPI(object):
                     resp = cls._api_request(request_url)
                     resp_data = resp.json()
                 except AFClientError as e:
+                    # TODO: Can be removed once AF Cookie going away bug is fixed.
                     if "AF Cookie Not Found" in e.message:
                         raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
                                         % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.resp)
@@ -219,6 +220,8 @@ class AFTag(AutoFocusAPI):
     
     @classmethod
     def get(cls, tag_name):
+
+        # TODO: This can probably use more validation
 
         resp = cls._api_request("/tag/" + tag_name).json()
 
