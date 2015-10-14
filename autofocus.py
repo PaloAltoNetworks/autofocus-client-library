@@ -20,16 +20,35 @@ class NotLoaded(object):
     pass
 
 class AFClientError(Exception):
-    def __init__(self, message, resp = None):
+    """
+    Notes:
+        AFClientError is an exception that's thrown when the client library is either used improperly, or offers invalid
+        data to the AutoFocus REST service
+    Args:
+        message (str): Message describing the error
+        response (Optional[requests.Response]): Optionally the response from the server in the case of on invalid request
+    """
+    def __init__(self, message, response = None):
         super(AFClientError, self).__init__(self, message)
-        self.resp = resp
+        self.response = response
+        """requests.Response: response from the server (May be None)"""
         self.message = message
+        """A message describing the error"""
 
 class AFServerError(Exception):
-    def __init__(self, message, resp):
+    """
+    Notes:
+        AFServerError is an exception that's thrown when the AutoFocus REST service behaves unexpectedly
+    Args:
+        message (str): Message describing the error
+        response (requests.Response): Optionally the response from the server in the case of on invalid request
+    """
+    def __init__(self, message, response):
         super(AFServerError, self).__init__(self, message)
-        self.resp = resp
+        self.response = response
+        """requests.Response: response from the server"""
         self.message = message
+        """A message describing the error"""
 
 
 class AutoFocusAPI(object):
@@ -59,7 +78,7 @@ class AutoFocusAPI(object):
 
         if resp.status_code >= 400 and resp.status_code < 500:
             raise AFClientError(resp._content, resp)
-        
+
         if resp.status_code >= 500 and resp.status_code < 600:
             raise AFServerError(resp._content, resp)
 
@@ -134,21 +153,27 @@ class AutoFocusAPI(object):
     @classmethod
     def _api_search(cls, *args, **kwargs):
 
+        # TODO: Needs alot of documentation to make this more clear for readers
+
         args = list(args)
 
         # Classes that inherit from AutoFocusAPI need to pass a search path as the 
         # first arg to the protected _api_search method
         path = args.pop(0)
 
-        if len(args) == 1:
+        if len(args) == 1 and type(args[0]) is str:
             post_data = {
                 "query" : json.loads(args[0])
             }
         else:
+
+            if len(args) == 1 and not kwargs:
+                kwargs = args[0]
+
             # Just do an or here, we'll do validation below
             if "field" in kwargs or "value" in kwargs:
                 args.append(kwargs)
-                
+
             post_data = {
                 "query": {
                     "operator": cls.search_operator,
@@ -236,8 +261,21 @@ class AFSession(AutoFocusAPI):
             yield AFSession(**res['_source'])
 
 class AFSample(AutoFocusAPI):
+    """
+        The AFSample is a subclass of the AutoFocusAPI class. It should NOT be instantiated
+         directly. Using the various factory class methods will return instance(s) of AFSample
+    """
 
     def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp"]):
+        """
+        Args:
+            sections (Optional[array[str]]): The analyses sections desired.
+        Returns:
+            array: A list of dictionaries corresponding to the analyses in AutoFocus for the
+                given sample
+        """
+
+        # TODO: Document all the possible sections for the sections argument
 
         resp = self.__class__._api_request("/sample/" + self.sha256 + "/analysis", \
                     post_data = { "sections" : sections, "platforms" : platforms }).json()
@@ -246,12 +284,59 @@ class AFSample(AutoFocusAPI):
                               
     @classmethod
     def search(cls, *args, **kwargs):
+        """
+        Notes:
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            following page for details on how searching works in the UI and how to craft a query for the API:
+            https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+        Args:
+            Search takes several different argument styles. See the examples to learn more.
+
+        Yields:
+            AFSample: sample objects as they are paged from the REST service
+
+        Examples:
+            For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it's advised to
+            pass the raw string to .search
+
+            # Arguments in the form of kwargs
+            samples = []
+            for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
+                samples.append(sample.md5)
+
+            # Python dictionary with the query parameters
+            try:
+                sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
+            except StopIteration:
+                # No results found
+                pass
+
+            # Query strings from the AutoFocus web UI
+            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+            sample = AFSample.search("{'field':'sample.malware', 'value':1, 'operator':'is'}").next()
+        """
 
         for res in cls._api_search("/samples/search", *args, **kwargs):
             yield AFSample(**res['_source'])
 
     @classmethod
     def get(cls, hash):
+        """
+        Args:
+            hash (str): either a md5, sha1, or sha256 hash of the sample needed
+        Returns:
+            AFSample: Instance of AFSample that matches the hash offered
+        Raises:
+            KeyError: In the case that the argument offered is an invalid hash or that the hash
+                doesn't match a sample in AutoFocus
+        Examples:
+            try:
+                sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+                sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
+                sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
+            except KeyError:
+                pass # Sample didn't exist
+        """
 
         if not re.match(r'^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$', hash):
             raise KeyError("Argument mush be a valid md5, sha1, or sha256 hash")
@@ -275,19 +360,7 @@ class AFSample(AutoFocusAPI):
 
 if __name__ == "__main__":
 
-#    i = 0
-#    for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
-#        i += 1
-#        pprint(sample.__dict__)
-#        pprint(sample.get_analyses())
-#    print "%d results" % (i,)
-
     # Get a sample by hash
-    sample = AFSample.get("585fa6e62424037461b8cb9e6b59597e54f2b74510b1efea2a14be4f58bae4eb")
-    print sample.md5
-
-    sample = AFSample.get("7c49955374b0b8105d6ca34dafeb3769")
-    print sample.sha1
-
-    sample = AFSample.get("bd3ccbddd8e3da2f4de04974e744e2a776539cf5")
-    print sample.sha256
+    sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+    sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
+    sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
