@@ -53,7 +53,7 @@ class AFServerError(Exception):
 
 class AutoFocusAPI(object):
 
-    page_size = 50
+    page_size = 2000
     search_operator = "all"
 
     def __init__(self, **kwargs):
