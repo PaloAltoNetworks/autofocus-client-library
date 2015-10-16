@@ -232,23 +232,42 @@ class AFTag(AutoFocusAPI):
         kwargs['scope'] = kwargs.get("scope", "Visible")
         kwargs['sortBy'] = kwargs.get("sortBy", "name")
         kwargs['order'] = kwargs.get("order", "asc")
-        kwargs['pageSize'] = kwargs.get("pageSize", 1000)
-        kwargs['pageNum'] = kwargs.get("pageNum", 0)
-                              
-        resp = cls._api_request("/tags/", params = kwargs).json()
+        kwargs['pageSize'] = 200
+        kwargs['pageNum'] = 0
+
         results = []
 
+        resp = cls._api_request("/tags/", params = kwargs).json()
+
         for tag in resp['tags']:
-            results.append(AFTag(**tag))            
+            results.append(AFTag(**tag))
+
+        total_count = resp['total_count']
+
+        if total_count <= kwargs['pageSize']:
+            return results
+
+        while ((kwargs['pageSize'] * kwargs['pageNum']) + kwargs['pageSize']) < total_count:
+
+            kwargs['pageNum'] += 1
+
+            resp = cls._api_request("/tags/", params = kwargs).json()
+
+            for tag in resp['tags']:
+                results.append(AFTag(**tag))
 
         return results
     
     @classmethod
     def get(cls, tag_name):
 
-        # TODO: This can probably use more validation
-
-        resp = cls._api_request("/tag/" + tag_name).json()
+        try:
+            resp = cls._api_request("/tag/" + tag_name).json()
+        except AFClientError as e:
+            if e.response.code == 404:
+                raise AFClientError("No such tag exists", e.resposne)
+            else:
+                raise e
 
         return AFTag(**resp['tag'])            
 
@@ -359,6 +378,8 @@ class AFSample(AutoFocusAPI):
         return res
 
 if __name__ == "__main__":
+
+    print len(AFTag.list())
 
     # Get a sample by hash
     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
