@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import requests, json, sys, time, re
 from pprint import pprint
+from datetime import datetime
 import autofocus_config
 
 AF_APIKEY = autofocus_config.AF_APIKEY
@@ -279,11 +280,126 @@ class AFSession(AutoFocusAPI):
         for res in cls._api_search("/sessions/search", *args, **kwargs):
             yield AFSession(**res['_source'])
 
-class AFSample(AutoFocusAPI):
+class AFSampleFactory(AutoFocusAPI):
+
+    @classmethod
+    def search(cls, *args, **kwargs):
+        """
+        Notes: See AFSample.search documentation
+        """
+
+        for res in cls._api_search("/samples/search", *args, **kwargs):
+            yield AFSample(**res['_source'])
+
+    @classmethod
+    def get(cls, hash):
+        """
+        Notes: See AFSample.get documentation
+        """
+
+        if not re.match(r'^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$', hash):
+            raise KeyError("Argument mush be a valid md5, sha1, or sha256 hash")
+
+        res = None
+
+        try:
+            if len(hash) == 32:
+                res = cls.search(field = "sample.md5", value = hash).next()
+            elif len(hash) == 40:
+                res = cls.search(field = "sample.sha1", value = hash).next()
+            elif len(hash) == 64:
+                res = cls.search(field = "sample.sha256", value = hash).next()
+        except StopIteration:
+            pass
+
+        if not res:
+            raise KeyError("No such hash found in AutoFocus")
+
+        return res
+
+class AFSample(object):
+
     """
         The AFSample is a subclass of the AutoFocusAPI class. It should NOT be instantiated
          directly. Using the various factory class methods will return instance(s) of AFSample
     """
+
+    def __init__(self, **kwargs):
+
+        known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
+                            "virustotal_hit", "source_label", "finish_date", "tag", "digital_signer", "update_date",\
+                            "ssdeep", "imphash")
+
+        # TODO: remove this when the library matures, needless checking once we sort out attributes
+        for k, v in kwargs.items():
+            if k not in known_attributes:
+                sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
+
+
+        #: str: md5 sum of the sample
+        self.md5 = kwargs['md5']
+
+        #: str: sha256 sum of the sample
+        self.sha256 = kwargs['sha256']
+
+        #: Optional(str): sha1 sum of the sample
+        self.sha1 = kwargs.get('sha1', None)
+
+        #: Optional(str): ssdeep sum of the sample
+        self.ssdeep = kwargs.get('ssdeep', None)
+
+        #: Optional(str): imphash sum of the sample
+        self.imphash = kwargs.get('imphash', None)
+
+        #: str: The file type of the sample
+        self.file_type = kwargs['filetype']
+
+        kwargs['finish_date'] = kwargs.get('finish_date', None)
+        if kwargs['finish_date']:
+            datetime.strptime(kwargs['finish_date'], '%Y-%m-%dT%H:%M:%S')
+
+        #: Optional(datetime): The time the first sample analysis completed
+        self.finish_date = kwargs['finish_date']
+
+        kwargs['update_date'] = kwargs.get('update_date', None)
+        if kwargs['update_date']:
+            datetime.strptime(kwargs['update_date'], '%Y-%m-%dT%H:%M:%S')
+
+        #: Optional(datetime): The time the last sample analysis completed
+        self.update_date = kwargs['update_date']
+
+        # I don't think this should be optional, but playing it safe for now
+        kwargs['create_date'] = kwargs.get('create_date', None)
+        if kwargs['create_date']:
+            datetime.strptime(kwargs['create_date'], '%Y-%m-%dT%H:%M:%S')
+
+        #: datetime: The time the sample was first seen by the system
+        self.create_date = kwargs['create_date']
+
+        #: bool: Whether WildFire thinks the sample is Malware or not
+        self.malware = True if kwargs['malware'] else False
+
+        #: int: The size of the sample in bytes
+        self.size = kwargs['size']
+
+        #: List[AFTag]: A list of tags
+        self.tags = NotLoaded()
+
+        #: Optiona[int]: TODO needs documentation
+        self.multiscanner_hits = kwargs.get("multiscanner_hit", None)
+
+        #: Optiona[int]: how many sources regard the sample to be malicious in Virus Total
+        self.virustotal_hits = kwargs.get("virustotal_hit", None)
+
+        #: Optional[str]: The source the sample came from
+        self.source_label = kwargs.get("source_label", "")
+
+        #: Optional[str]: The signer for the sample
+        self.digital_signer = kwargs.get("digital_signer", None)
+
+        # Private _tags
+        self._tags = kwargs.get('tag', None)
+
 
     def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp"]):
         """
@@ -296,11 +412,11 @@ class AFSample(AutoFocusAPI):
 
         # TODO: Document all the possible sections for the sections argument
 
-        resp = self.__class__._api_request("/sample/" + self.sha256 + "/analysis", \
+        resp = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", \
                     post_data = { "sections" : sections, "platforms" : platforms }).json()
 
         return resp
-                              
+
     @classmethod
     def search(cls, *args, **kwargs):
         """
@@ -334,9 +450,8 @@ class AFSample(AutoFocusAPI):
             # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
             sample = AFSample.search("{'field':'sample.malware', 'value':1, 'operator':'is'}").next()
         """
-
-        for res in cls._api_search("/samples/search", *args, **kwargs):
-            yield AFSample(**res['_source'])
+        for sample in AFSampleFactory.search(*args, **kwargs):
+            yield sample
 
     @classmethod
     def get(cls, hash):
@@ -356,26 +471,8 @@ class AFSample(AutoFocusAPI):
             except KeyError:
                 pass # Sample didn't exist
         """
+        return AFSampleFactory(hash)
 
-        if not re.match(r'^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$', hash):
-            raise KeyError("Argument mush be a valid md5, sha1, or sha256 hash")
-
-        res = None
-
-        try:
-            if len(hash) == 32:
-                res = cls.search(field = "sample.md5", value = hash).next()
-            elif len(hash) == 40:
-                res = cls.search(field = "sample.sha1", value = hash).next()
-            elif len(hash) == 64:
-                res = cls.search(field = "sample.sha256", value = hash).next()
-        except StopIteration:
-            pass
-
-        if not res:
-            raise KeyError("No such hash found in AutoFocus")
-
-        return res
 
 if __name__ == "__main__":
 
