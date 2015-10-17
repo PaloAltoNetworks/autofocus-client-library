@@ -42,7 +42,7 @@ class AFServerError(Exception):
         AFServerError is an exception that's thrown when the AutoFocus REST service behaves unexpectedly
     Args:
         message (str): Message describing the error
-        response (requests.Response): Optionally the response from the server in the case of on invalid request
+        response (requests.Response): the response from the server in the case of on invalid request
     """
     def __init__(self, message, response):
         super(AFServerError, self).__init__(self, message)
@@ -229,6 +229,59 @@ class AFTag(AutoFocusAPI):
 
     @classmethod
     def list(cls, *args, **kwargs):
+        """
+        Args:
+            scope (str): The scope of the tags you want listed, acceptable values are -
+                Visible, Private, Public, Unit42, Mine, Commodity. Defaults to Visible
+            sortBy (Optional[str]): The field to sort results by, acceptable values are - name, status, count, lasthit,
+                upVotes, downVotes. Defaults to name
+            order (str): The direction to sort, acceptable values are "asc" or "desc", Defaults to asc
+
+
+        Returns:
+            List[AFTag]: as list of AFTag objects based on the arguments offered.
+
+        Raises:
+            KeyError: Raises a key error when the tag does not exist
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            for tag in AFTag.list():
+                print tag.count
+        """
+        return AFTagFactory.list(*args, **kwargs)
+
+    @classmethod
+    def get(cls, tag_name):
+        """
+        Args:
+            tag_name (str): The name of the tag to pull an object for
+
+        Returns:
+            AFTag: an instance of AFTag for the given tag name
+
+        Raises:
+            KeyError: Raises a key error when the tag does not exist
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            try:
+                tag = AFTag.get("Made up tag name")
+            except KeyError:
+                pass # Sample didn't exist
+        """
+        return AFTagFactory.get(tag_name)
+
+
+class AFTagFactory(AutoFocusAPI):
+
+    @classmethod
+    def list(cls, *args, **kwargs):
+        """
+        Notes: See AFTag.list for documentation
+        """
 
         kwargs['scope'] = kwargs.get("scope", "Visible")
         kwargs['sortBy'] = kwargs.get("sortBy", "name")
@@ -258,19 +311,23 @@ class AFTag(AutoFocusAPI):
                 results.append(AFTag(**tag))
 
         return results
-    
+
     @classmethod
     def get(cls, tag_name):
+        """
+        Notes: See AFTag.get for documentation
+        """
 
         try:
             resp = cls._api_request("/tag/" + tag_name).json()
         except AFClientError as e:
             if e.response.code == 404:
-                raise AFClientError("No such tag exists", e.resposne)
+                raise KeyError("No such tag exists")
             else:
                 raise e
 
-        return AFTag(**resp['tag'])            
+        return AFTag(**resp['tag'])
+
 
 class AFSession(AutoFocusAPI):
 
@@ -342,13 +399,13 @@ class AFSample(object):
         #: str: sha256 sum of the sample
         self.sha256 = kwargs['sha256']
 
-        #: Optional(str): sha1 sum of the sample
+        #: Optional[str]: sha1 sum of the sample
         self.sha1 = kwargs.get('sha1', None)
 
-        #: Optional(str): ssdeep sum of the sample
+        #: Optional[str]: ssdeep sum of the sample
         self.ssdeep = kwargs.get('ssdeep', None)
 
-        #: Optional(str): imphash sum of the sample
+        #: Optional[str]: imphash sum of the sample
         self.imphash = kwargs.get('imphash', None)
 
         #: str: The file type of the sample
@@ -358,14 +415,14 @@ class AFSample(object):
         if kwargs['finish_date']:
             datetime.strptime(kwargs['finish_date'], '%Y-%m-%dT%H:%M:%S')
 
-        #: Optional(datetime): The time the first sample analysis completed
+        #: Optional[datetime]: The time the first sample analysis completed
         self.finish_date = kwargs['finish_date']
 
         kwargs['update_date'] = kwargs.get('update_date', None)
         if kwargs['update_date']:
             datetime.strptime(kwargs['update_date'], '%Y-%m-%dT%H:%M:%S')
 
-        #: Optional(datetime): The time the last sample analysis completed
+        #: Optional[datetime]: The time the last sample analysis completed
         self.update_date = kwargs['update_date']
 
         # I don't think this should be optional, but playing it safe for now
@@ -424,9 +481,14 @@ class AFSample(object):
         """
         Args:
             sections (Optional[array[str]]): The analyses sections desired.
+
         Returns:
             array: A list of dictionaries corresponding to the analyses in AutoFocus for the
                 given sample
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
         """
 
         # TODO: Document all the possible sections for the sections argument
@@ -448,6 +510,10 @@ class AFSample(object):
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
 
         Examples:
             For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it's advised to
@@ -477,11 +543,16 @@ class AFSample(object):
         """
         Args:
             hash (str): either a md5, sha1, or sha256 hash of the sample needed
+
         Returns:
             AFSample: Instance of AFSample that matches the hash offered
+
         Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
             KeyError: In the case that the argument offered is an invalid hash or that the hash
                 doesn't match a sample in AutoFocus
+
         Examples:
             try:
                 sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
@@ -494,6 +565,8 @@ class AFSample(object):
 
 
 if __name__ == "__main__":
+
+    print len(AFTag.list())
 
     # Get a sample by hash
     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
