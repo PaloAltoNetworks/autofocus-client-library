@@ -400,6 +400,25 @@ class AFSample(object):
         # Private _tags
         self._tags = kwargs.get('tag', None)
 
+    def __getattribute__(self, attr):
+
+        value = object.__getattribute__(self, attr)
+
+        # Tags are offered as strings. Lazy load AFTag objects
+        # When they are accessed
+        if attr == "tags" and type(value) is NotLoaded:
+
+            value = []
+
+            for tag_name in self._tags:
+
+                # TODO: Consider what might happen here if the tagname isn't in the DB
+                value.append(AFTag.get(tag_name))
+
+            self.tags = value
+
+        return value
+
 
     def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp"]):
         """
@@ -471,14 +490,15 @@ class AFSample(object):
             except KeyError:
                 pass # Sample didn't exist
         """
-        return AFSampleFactory(hash)
+        return AFSampleFactory.get(hash)
 
 
 if __name__ == "__main__":
 
-    print len(AFTag.list())
-
     # Get a sample by hash
     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+    for tag in sample.tags:
+        print tag.public_tag_name
+
     sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
     sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
