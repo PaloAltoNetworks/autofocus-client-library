@@ -31,10 +31,10 @@ class AFClientError(Exception):
     """
     def __init__(self, message, response = None):
         super(AFClientError, self).__init__(self, message)
-        self.response = response
-        """requests.Response: response from the server (May be None)"""
+        #: str: a message describing the error
         self.message = message
-        """A message describing the error"""
+        #: Optional[requests.Response]: response from the server (May be None)
+        self.response = response
 
 class AFServerError(Exception):
     """
@@ -46,10 +46,10 @@ class AFServerError(Exception):
     """
     def __init__(self, message, response):
         super(AFServerError, self).__init__(self, message)
-        self.response = response
-        """requests.Response: response from the server"""
+        #: str: a message describing the error
         self.message = message
-        """A message describing the error"""
+        #: requests.Response: response from the server
+        self.response = response
 
 
 class AutoFocusAPI(object):
@@ -201,17 +201,75 @@ class AutoFocusAPI(object):
             for hit in res['hits']:
                 yield hit
 
-class AFTag(AutoFocusAPI):
+# TODO: Create a class for AFTag.refs
+class AFTagReference(object):
+    pass
+
+class AFTag(object):
 
     def __init__(self, **kwargs):
 
-        self.comments = kwargs.get("comments", NotLoaded())
-        self.refs = kwargs.get("refs", NotLoaded())
-        self.review = kwargs.get("review", NotLoaded())
-        self.support_id = kwargs.get("support_id", NotLoaded())
+        #: str: The backend compliant name for the tag. You most likely want public_name
+        self.name = kwargs["tag_name"]
 
-        for k,v in kwargs.items():
-            setattr(self, k, v)
+        #: str: the presentation name for the tag
+        self.public_name = kwargs["public_tag_name"]
+
+        #: int: the number of samples matching the tag
+        self.count = kwargs["count"]
+
+        kwargs['lasthit'] = kwargs.get('lasthit', None)
+
+        # Preserve the raw lasthit in a private variable
+        self._last_hit = kwargs['lasthit']
+
+        if kwargs['lasthit']:
+            kwargs['lasthit'] = datetime.strptime(kwargs['lasthit'], '%Y-%m-%d %H:%M:%S')
+
+        #: Optional[datetime]: the last time there was activity witnessed for the tag
+        self.last_hit = kwargs["lasthit"]
+
+        #: str: the authors description of the tag
+        self.description = kwargs["description"]
+
+        #: str: The definition status for the tag
+        self.definition_status = kwargs["tag_definition_status"]
+
+        #: int: The definition status id for the tag
+        self.definition_status_id = kwargs["tag_definition_status_id"]
+
+        #: str: The definition scope for the tag
+        self.definition_scope = kwargs["tag_definition_scope"]
+
+        #: int: The definition scoe id for the tag
+        self.definition_scope_id = kwargs["tag_definition_scope_id"]
+
+        #: str: The class for the tag. Need to break convention for reserved words in python
+        self.tag_class = kwargs.get("tag_class", NotLoaded())
+
+        #: int: The class id for the tag. Need to break convention for reserved words in python
+        self.tag_class_id = kwargs["tag_class_id"]
+
+        #: Optiona[str]: The name of the customer who wrote the tag. Will be None if not recorded or you don't have permission to view it
+        self.customer_name = kwargs.get("customer_name", None)
+
+        #: int: up votes for the tag
+        self.up_votes = kwargs.get("up_votes", 0)
+
+        #: int: Down votes for the tag
+        self.down_votes = kwargs.get("down_votes", 0)
+
+        #: List[str]: Comments for the given tag
+        self.comments = kwargs.get("comments", NotLoaded())
+
+        #: List[str]: a list of references for the tag
+        self.references = kwargs.get("refs", NotLoaded())
+
+        #: dict: a dictionary with comments in it? Don't we have comments above?
+        #self.review = kwargs.get("review", NotLoaded())
+
+        #: int: The support id for the tag
+        self.support_id = kwargs.get("support_id", NotLoaded())
 
     def __getattribute__(self, attr):
 
@@ -219,7 +277,7 @@ class AFTag(AutoFocusAPI):
 
         # Not offered in the list controller, have to call get to lazyload:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'refs', 'review', 'support_id') and type(value) is NotLoaded:
+        if attr in ('comments', 'references', 'review', 'support_id', 'tag_class') and type(value) is NotLoaded:
 
             # Reloading the data via the get method
             self = AFTag.get(self.public_tag_name)
@@ -413,14 +471,14 @@ class AFSample(object):
 
         kwargs['finish_date'] = kwargs.get('finish_date', None)
         if kwargs['finish_date']:
-            datetime.strptime(kwargs['finish_date'], '%Y-%m-%dT%H:%M:%S')
+            kwargs['finish_date'] = datetime.strptime(kwargs['finish_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: Optional[datetime]: The time the first sample analysis completed
         self.finish_date = kwargs['finish_date']
 
         kwargs['update_date'] = kwargs.get('update_date', None)
         if kwargs['update_date']:
-            datetime.strptime(kwargs['update_date'], '%Y-%m-%dT%H:%M:%S')
+            kwargs['update_date'] = datetime.strptime(kwargs['update_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: Optional[datetime]: The time the last sample analysis completed
         self.update_date = kwargs['update_date']
@@ -428,7 +486,7 @@ class AFSample(object):
         # I don't think this should be optional, but playing it safe for now
         kwargs['create_date'] = kwargs.get('create_date', None)
         if kwargs['create_date']:
-            datetime.strptime(kwargs['create_date'], '%Y-%m-%dT%H:%M:%S')
+            kwargs['create_date'] = datetime.strptime(kwargs['create_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: datetime: The time the sample was first seen by the system
         self.create_date = kwargs['create_date']
@@ -566,12 +624,14 @@ class AFSample(object):
 
 if __name__ == "__main__":
 
+    tag = AFTag.get("Unit42.CryptoWall")
+    pprint(tag.__dict__)
     print len(AFTag.list())
 
     # Get a sample by hash
     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
     for tag in sample.tags:
-        print tag.public_tag_name
+        print tag.public_name
 
     sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
     sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
