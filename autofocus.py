@@ -269,9 +269,13 @@ class AFTag(object):
 
         #: int: up votes for the tag
         self.up_votes = kwargs.get("up_votes", 0)
+        if self.up_votes == None:
+            self.up_votes = 0
 
         #: int: Down votes for the tag
         self.down_votes = kwargs.get("down_votes", 0)
+        if self.down_votes == None:
+            self.down_votes = 0
 
         #: List[str]: Comments for the given tag
         self.comments = kwargs.get("comments", NotLoaded())
@@ -296,6 +300,12 @@ class AFTag(object):
             # Reloading the data via the get method
             self = AFTag.get(self.public_name)
             value = object.__getattribute__(self, attr)
+
+            # Current data models are inconsistent, need to throw a warning about defaulting to None here
+            # TODO: Remove this once the objects returned by the REST service are made consistent.
+            if type(value) is NotLoaded:
+                value = None
+                sys.stderr.write("Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
 
         return value
 
