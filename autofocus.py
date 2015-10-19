@@ -294,7 +294,7 @@ class AFTag(object):
         if attr in ('comments', 'references', 'review', 'support_id', 'tag_class') and type(value) is NotLoaded:
 
             # Reloading the data via the get method
-            self = AFTag.get(self.public_tag_name)
+            self = AFTag.get(self.public_name)
             value = object.__getattribute__(self, attr)
 
         return value
