@@ -18,6 +18,10 @@ _base_url = "https://autofocus.paloaltonetworks.com/api/v0.9"
 _headers = {"Content-Type" : "application/json"}
 
 class NotLoaded(object):
+    """
+    NotLoaded is a class used internally by various classes in this module for handling when an attribute needs to be
+    lazy loaded. This class is not meant for general use.
+    """
     pass
 
 class AFClientError(Exception):
@@ -53,6 +57,10 @@ class AFServerError(Exception):
 
 
 class AutoFocusAPI(object):
+    """
+    The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for
+    general use and is core to this underlying client library
+    """
 
     page_size = 2000
     search_operator = "all"
@@ -206,6 +214,12 @@ class AFTagReference(object):
     pass
 
 class AFTag(object):
+    """
+    The AFTag should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFTag. See:
+        AFTag.list
+        AFTag.get
+    """
 
     def __init__(self, **kwargs):
 
@@ -275,7 +289,7 @@ class AFTag(object):
 
         value = object.__getattribute__(self, attr)
 
-        # Not offered in the list controller, have to call get to lazyload:
+        # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
         if attr in ('comments', 'references', 'review', 'support_id', 'tag_class') and type(value) is NotLoaded:
 
@@ -334,6 +348,9 @@ class AFTag(object):
 
 
 class AFTagFactory(AutoFocusAPI):
+    """
+    AFTagFactory is a class to handle fetching an instantiating AFTag objects. See AFTag for details
+    """
 
     @classmethod
     def list(cls, *args, **kwargs):
@@ -396,6 +413,9 @@ class AFSession(AutoFocusAPI):
             yield AFSession(**res['_source'])
 
 class AFSampleFactory(AutoFocusAPI):
+    """
+    AFSampleFactory is a class to handle fetching an instantiating AFSample objects. See AFSample for details
+    """
 
     @classmethod
     def search(cls, *args, **kwargs):
@@ -433,10 +453,11 @@ class AFSampleFactory(AutoFocusAPI):
         return res
 
 class AFSample(object):
-
     """
-        The AFSample is a subclass of the AutoFocusAPI class. It should NOT be instantiated
-         directly. Using the various factory class methods will return instance(s) of AFSample
+    The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
+        AFSample.search
+        AFSample.get
     """
 
     def __init__(self, **kwargs):
