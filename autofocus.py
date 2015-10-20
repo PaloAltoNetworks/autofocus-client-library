@@ -357,6 +357,30 @@ class AFTag(object):
         return AFTagFactory.get(tag_name)
 
 
+class AFTagCache(object):
+
+    _cache = {}
+
+    @classmethod
+    def get(cls, tag_name):
+
+        if tag_name in cls._cache:
+            return cls._cache[tag_name]
+
+        return None
+
+    @classmethod
+    def add(cls, tag):
+
+        cls._cache[tag.public_name] = tag
+        return cls._cache[tag.public_name]
+
+    @classmethod
+    def clear(cls, tag):
+
+        cls._cache[tag.public_name] = {}
+
+
 class AFTagFactory(AutoFocusAPI):
     """
     AFTagFactory is a class to handle fetching an instantiating AFTag objects. See AFTag for details
@@ -392,7 +416,7 @@ class AFTagFactory(AutoFocusAPI):
 
             resp = cls._api_request("/tags/", params = kwargs).json()
 
-            for tag in resp['tags']:
+            for tag_data in resp['tags']:
                 results.append(AFTag(**tag))
 
         return results
@@ -403,15 +427,21 @@ class AFTagFactory(AutoFocusAPI):
         Notes: See AFTag.get for documentation
         """
 
-        try:
-            resp = cls._api_request("/tag/" + tag_name).json()
-        except AFClientError as e:
-            if e.response.code == 404:
-                raise KeyError("No such tag exists")
-            else:
-                raise e
+        tag = AFTagCache.get(tag_name)
 
-        return AFTag(**resp['tag'])
+        if not tag:
+
+            try:
+                resp = cls._api_request("/tag/" + tag_name).json()
+            except AFClientError as e:
+                if e.response.code == 404:
+                    raise KeyError("No such tag exists")
+                else:
+                    raise e
+
+            tag = AFTagCache.add(AFTag(**resp['tag']))
+
+        return tag
 
 
 class AFSession(AutoFocusAPI):
