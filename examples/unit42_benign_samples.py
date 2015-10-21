@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from autofocus import AFTag, AFSample, AutoFocusAPI
 from pprint import pprint
+from time import time
 import sys
 
 unit42_tags = {}
@@ -10,10 +11,6 @@ for tag in AFTag.list(scope = "Unit42"):
 
 #    if tag.tag_definition_scope_id != 4:
 #        continue
-
-    # Just here to break on. For some reason Unit42 tags aren't showing up
-    if tag.public_name == 'Unit42.ZXShell':
-        pass
 
     unit42_tags[tag.public_name] = tag
 
@@ -79,22 +76,25 @@ for sample in AFSample.search(query):
 # Looking for a report of
 # Tag, <..., list of file type counts>, <oldest sample>, <newest sample>
 
-print "tag,",
+o_file = open("/tmp/malicious_tags_benign_samples.%d.csv" % (time()), "w")
+
+o_file.write("tag,")
 for file_type in file_types:
-    print file_type + ",",
-print "oldest_sample,newest_sample"
+    o_file.write(file_type + ",")
+o_file.write("oldest_sample,newest_sample" + "\n")
 
 for tag_name, metrics in sample_metrics.items():
 
-    print tag_name + "," ,
+    o_file.write(tag_name + ",")
 
     for file_type in file_types:
         if file_type in metrics['file_types']:
-            print str(metrics['file_types'][file_type]) + "," ,
+            o_file.write(str(metrics['file_types'][file_type]) + ",")
         else:
-            print "0" + "," ,
+            o_file.write("0" + ",")
 
-    print str(metrics['oldest_sample']) + "," ,
-    print str(metrics['newest_sample'])
+    o_file.write(str(metrics['oldest_sample']) + ",")
+    o_file.write(str(metrics['newest_sample']) + "\n")
 
+o_file.close()
 
