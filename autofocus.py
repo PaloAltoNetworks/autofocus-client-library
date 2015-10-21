@@ -400,12 +400,12 @@ class AFTagFactory(AutoFocusAPI):
 
         results = []
 
-        resp = cls._api_request("/tags/", params = kwargs).json()
+        resp_data = cls._api_request("/tags/", params = kwargs).json()
 
-        for tag in resp['tags']:
-            results.append(AFTag(**tag))
+        for tag_data in resp_data['tags']:
+            results.append(AFTag(**tag_data))
 
-        total_count = resp['total_count']
+        total_count = resp_data['total_count']
 
         if total_count <= kwargs['pageSize']:
             return results
@@ -414,10 +414,10 @@ class AFTagFactory(AutoFocusAPI):
 
             kwargs['pageNum'] += 1
 
-            resp = cls._api_request("/tags/", params = kwargs).json()
+            resp_data = cls._api_request("/tags/", params = kwargs).json()
 
-            for tag_data in resp['tags']:
-                results.append(AFTag(**tag))
+            for tag_data in resp_data['tags']:
+                results.append(AFTag(**tag_data))
 
         return results
 
