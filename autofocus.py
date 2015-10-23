@@ -247,16 +247,16 @@ class AFTag(object):
         self.description = kwargs["description"]
 
         #: str: The definition status for the tag
-        self.definition_status = kwargs["tag_definition_status"]
+        self.status = kwargs["tag_definition_status"]
 
         #: int: The definition status id for the tag
-        self.definition_status_id = kwargs["tag_definition_status_id"]
+        self.status_id = kwargs["tag_definition_status_id"]
 
         #: str: The definition scope for the tag
-        self.definition_scope = kwargs["tag_definition_scope"]
+        self.scope = kwargs["tag_definition_scope"]
 
         #: int: The definition scoe id for the tag
-        self.definition_scope_id = kwargs["tag_definition_scope_id"]
+        self.scope_id = kwargs["tag_definition_scope_id"]
 
         #: str: The class for the tag. Need to break convention for reserved words in python
         self.tag_class = kwargs.get("tag_class", NotLoaded())

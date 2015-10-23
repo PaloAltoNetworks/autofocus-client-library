@@ -9,7 +9,7 @@ unit42_tags = {}
 # Pull all unit 42 tags and add them to the search terms
 for tag in AFTag.list(scope = "Unit42"):
 
-#    if tag.tag_definition_scope_id != 4:
+#    if tag.scope_id != 4:
 #        continue
 
     unit42_tags[tag.public_name] = tag
@@ -45,7 +45,7 @@ for sample in AFSample.search(query):
     for tag in sample.tags:
 
         # Skiping private tags
-        if tag.definition_scope == "private":
+        if tag.scope == "private":
             continue
 
         if tag.public_name not in unit42_tags:
