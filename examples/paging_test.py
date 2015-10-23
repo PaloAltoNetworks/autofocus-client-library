@@ -18,7 +18,7 @@ query = """
   ]
 }
 """
-AutoFocusAPI.page_size = 3000
+
 samples = []
 print "sha256,md5,filetype,size"
 try:
