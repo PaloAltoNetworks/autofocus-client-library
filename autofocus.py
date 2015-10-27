@@ -141,7 +141,7 @@ class AutoFocusAPI(object):
                     # TODO: Can be removed once AF Cookie going away bug is fixed.
                     if "AF Cookie Not Found" in e.message:
                         raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
-                                        % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.resp)
+                                        % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
                     else:
                         raise e
 
