@@ -657,6 +657,11 @@ class AFSample(object):
         for sample in AFSampleFactory.search(*args, **kwargs):
             yield sample
 
+    # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
+    @classmethod
+    def search_hashes(cls, hashes):
+        raise NotImplemented()
+
     @classmethod
     def get(cls, hash):
         """
@@ -681,6 +686,35 @@ class AFSample(object):
                 pass # Sample didn't exist
         """
         return AFSampleFactory.get(hash)
+
+# Analyses
+#
+#apk_defined_activity
+#apk_defined_intent_filter
+#apk_defined_receiver
+#apk_defined_sensor
+#apk_defined_service
+#apk_embeded_url
+#apk_requested_permission
+#apk_sensitive_api_call
+#apk_suspicious_api_call
+#apk_suspicious_file
+#apk_suspicious_string
+#behavior_type
+#connection
+#dns
+#file
+#http
+#japi
+#mutex
+#misc
+#process
+#registry
+#service
+#user_agent
+
+# Platforms
+# win7, winxp, staticAnalyzer
 
 
 if __name__ == "__main__":
