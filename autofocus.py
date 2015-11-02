@@ -687,31 +687,101 @@ class AFSample(object):
         """
         return AFSampleFactory.get(hash)
 
-# Analyses
-#
+class AutoFocusAnalysis(object):
+    pass
+
 #apk_defined_activity
+class AFApkActivityAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_defined_intent_filter
+class AFApkIntentFilterAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_defined_receiver
+class AFApkReceiverAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_defined_sensor
+class AFApkSensorAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_defined_service
+class AFApkServiceAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_embeded_url
+class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_requested_permission
+class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_sensitive_api_call
+class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_suspicious_api_call
+class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_suspicious_file
+class AFApkSuspiciousFileAnalysis(AutoFocusAnalysis):
+    pass
+
 #apk_suspicious_string
+class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
+    pass
+
 #behavior_type
+class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
+    pass
+
 #connection
+class AFConnectionAnalysis(AutoFocusAnalysis):
+    pass
+
 #dns
+class AFDnsAnalysis(AutoFocusAnalysis):
+    pass
+
 #file
+class AFFileAnalysis(AutoFocusAnalysis):
+    pass
+
 #http
+class AFHttpAnalysis(AutoFocusAnalysis):
+    pass
+
 #japi
+class AFJavaApiAnalysis(AutoFocusAnalysis):
+    pass
+
 #mutex
+class AFMutexAnalysis(AutoFocusAnalysis):
+    pass
+
 #misc
+class AFMiscellaneousAnalysis(AutoFocusAnalysis):
+    pass
+
 #process
+class AFProcessAnalysis(AutoFocusAnalysis):
+    pass
+
 #registry
+class AFRegistryAnalysis(AutoFocusAnalysis):
+    pass
+
 #service
+class AFServiceAnalysis(AutoFocusAnalysis):
+    pass
+
 #user_agent
+class AFUserAgentAnalysis(AutoFocusAnalysis):
+    pass
+
 
 # Platforms
 # win7, winxp, staticAnalyzer
