@@ -6,6 +6,19 @@ import autofocus_config
 
 AF_APIKEY = autofocus_config.AF_APIKEY
 
+# A dictionary for mapping AutoFocus Analysis Response objects
+# to their corresponding normalization classes
+_analysis_class_map = {}
+
+ALL_ANALYSIS_SECTIONS = (
+    'apk_defined_activity', 'apk_defined_intent_filter', 'apk_defined_receiver',
+    'apk_defined_sensor', 'apk_defined_service', 'apk_embeded_url',
+    'apk_requested_permission', 'apk_sensitive_api_call', 'apk_suspicious_api_call',
+    'apk_suspicious_file', 'apk_suspicious_string', 'behavior_type', 'connection',
+    'dns', 'file', 'http', 'japi', 'mutex', 'misc', 'process', 'registry','service',
+    'user_agent'
+)
+
 # Useful information:
 #
 # * We're not doing any input validation in the client itself. We pass
@@ -596,26 +609,39 @@ class AFSample(object):
         return value
 
 
-    def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp"]):
+    def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp", "staticAnalyzer"]):
         """
         Args:
-            sections (Optional[array[str]]): The analyses sections desired.
+            sections (Optional[array[str]]): The analysis sections desired. Defaults to all possible sections.
+            platforms (Optional[array[str]]): The analysis platforms desired. Defaults to all possible platforms.
 
         Returns:
-            array: A list of dictionaries corresponding to the analyses in AutoFocus for the
-                given sample
+            array[AutoFocusAnalysis]: A list of AutoFocusAnalysis sub-class instances representing the analysis
 
         Raises:
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
         """
 
-        # TODO: Document all the possible sections for the sections argument
+        if not sections:
+            sections = ALL_ANALYSIS_SECTIONS
 
-        resp = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", \
+        resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", \
                     post_data = { "sections" : sections, "platforms" : platforms }).json()
 
-        return resp
+        analyses = []
+
+        for section in resp_data['sections']:
+            af_analysis_class = _analysis_class_map.get(section, None)
+
+            if not af_analysis_class:
+                raise AFClientError("Was expecting a known section in analysis_class_map, got {} instead".format(section))
+
+            for platform in resp_data['platforms']:
+                for data in resp_data[section][platform]:
+                    analyses.append(af_analysis_class.parse_auto_focus_response(platform, data))
+
+        return analyses
 
     @classmethod
     def search(cls, *args, **kwargs):
@@ -688,7 +714,10 @@ class AFSample(object):
         return AFSampleFactory.get(hash)
 
 class AutoFocusAnalysis(object):
-    pass
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, resp_data):
+        return NotImplemented()
 
 #apk_defined_activity
 class AFApkActivityAnalysis(AutoFocusAnalysis):
@@ -748,7 +777,26 @@ class AFDnsAnalysis(AutoFocusAnalysis):
 
 #file
 class AFFileAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, process_name, file_action, file_name, benign, malware, grayware):
+        self.platform = platform
+        self.benign_count = benign
+        self.malware_count = malware
+        self.grayware_count = grayware
+        self.process_name = process_name
+        self.file_action = file_action
+        self.file_name = file_name
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, file_data):
+
+        line_parts = file_data['line'].split(" , ")
+        (process_name, file_action, file_name) = line_parts[0:3]
+
+        fa = cls(platform, process_name, file_action, file_name, file_data['b'], file_data['m'], file_data['g'])
+        fa._raw_line = file_data['line']
+
+        return fa
 
 #http
 class AFHttpAnalysis(AutoFocusAnalysis):
@@ -782,6 +830,30 @@ class AFServiceAnalysis(AutoFocusAnalysis):
 class AFUserAgentAnalysis(AutoFocusAnalysis):
     pass
 
+_analysis_class_map['apk_defined_activity'] = AFApkActivityAnalysis
+_analysis_class_map['apk_defined_intent_filter'] = AFApkIntentFilterAnalysis
+_analysis_class_map['apk_defined_receiver'] = AFApkReceiverAnalysis
+_analysis_class_map['apk_defined_sensor'] = AFApkSensorAnalysis
+_analysis_class_map['apk_defined_service'] = AFApkServiceAnalysis
+_analysis_class_map['apk_embeded_url'] = AFApkEmbededUrlAnalysis
+_analysis_class_map['apk_requested_permission'] = AFApkRequestedPermissionAnalysis
+_analysis_class_map['apk_sensitive_api_call'] = AFApkSensitiveApiCallAnalysis
+_analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
+_analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
+_analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
+_analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis
+_analysis_class_map['connection'] = AFConnectionAnalysis
+_analysis_class_map['dns'] = AFDnsAnalysis
+_analysis_class_map['file'] = AFFileAnalysis
+_analysis_class_map['http'] = AFHttpAnalysis
+_analysis_class_map['japi'] = AFJavaApiAnalysis
+_analysis_class_map['mutex'] = AFMutexAnalysis
+_analysis_class_map['misc'] = AFMiscellaneousAnalysis
+_analysis_class_map['process'] = AFProcessAnalysis
+_analysis_class_map['registry'] = AFRegistryAnalysis
+_analysis_class_map['service'] = AFServiceAnalysis
+_analysis_class_map['user_agent'] = AFUserAgentAnalysis
+
 
 # Platforms
 # win7, winxp, staticAnalyzer
@@ -795,8 +867,15 @@ if __name__ == "__main__":
 
     # Get a sample by hash
     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+
+    for analysis in sample.get_analyses():
+        print type(analysis)
+
     for tag in sample.tags:
         print tag.public_name
 
     sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
     sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
+
+
+
