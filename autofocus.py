@@ -609,7 +609,7 @@ class AFSample(object):
         return value
 
 
-    def get_analyses(self, sections = ["file"], platforms = ["win7", "winxp", "staticAnalyzer"]):
+    def get_analyses(self, sections = None, platforms = ["win7", "winxp", "staticAnalyzer"]):
         """
         Args:
             sections (Optional[array[str]]): The analysis sections desired. Defaults to all possible sections.
@@ -637,9 +637,14 @@ class AFSample(object):
             if not af_analysis_class:
                 raise AFClientError("Was expecting a known section in analysis_class_map, got {} instead".format(section))
 
-            for platform in resp_data['platforms']:
+#            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
+            for platform in resp_data[section].keys():
                 for data in resp_data[section][platform]:
-                    analyses.append(af_analysis_class.parse_auto_focus_response(platform, data))
+                    # TODO: remove try catch when all analyses types are normalized
+                    try:
+                        analyses.append(af_analysis_class.parse_auto_focus_response(platform, data))
+                    except NotImplementedError:
+                        pass
 
         return analyses
 
@@ -686,7 +691,7 @@ class AFSample(object):
     # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
     @classmethod
     def search_hashes(cls, hashes):
-        raise NotImplemented()
+        raise NotImplemented
 
     @classmethod
     def get(cls, hash):
@@ -717,7 +722,7 @@ class AutoFocusAnalysis(object):
 
     @classmethod
     def parse_auto_focus_response(cls, platform, resp_data):
-        return NotImplemented()
+        raise NotImplementedError()
 
 #apk_defined_activity
 class AFApkActivityAnalysis(AutoFocusAnalysis):
@@ -765,11 +770,96 @@ class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
 
 #behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
-    pass
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, conn_data):
+
+        return conn_data
 
 #connection
 class AFConnectionAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, \
+                 benign, malware, grayware):
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: Optional(str): The destination IP for the connection. Only valid for outbound connections
+        self.dst_ip = dst_ip
+
+        #: Optional(int): The destination port for the connection. Only valid for outbound connections
+        self.dst_port = dst_port
+
+        #: Optional(int): The source port for the connection. Only valid for listening connections
+        self.src_port = src_port
+
+        #: str: The protocol of the connection
+        self.protocol = protocol
+
+        #: Optional[str]: The name of the process that created the connection, when available
+        self.process_name = process_name
+
+        #: Optional[str]: The country code for the destionation IP, when available
+        self.country_code = country_code
+
+        #: str: The action related to the connection (listen or connect)
+        self.action = action
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, conn_data):
+
+        (dst_ip, src_port, dst_port, uk2, country_code) = (None, None, None, None, None)
+        line_parts = conn_data['line'].split(" , ")
+
+        if len(line_parts) >= 4:
+            if len(line_parts) > 4:
+                (process_name, protocol, dst_ip_port, uk2, country_code) = line_parts[0:5]
+            else:
+                (process_name, protocol, dst_ip_port, country_code) = line_parts[0:4]
+            (dst_ip, dst_port) = dst_ip_port.split(":")
+        elif len(line_parts) == 3:
+            (process_name, protocol, src_port) = line_parts[0:3]
+
+        if process_name.lower() == "unknown":
+            process_name = None
+
+        if country_code == "" or country_code == "N/A":
+            country_code = None
+
+        (benign_c, malware_c, grayware_c) = (conn_data.get('b', 0), conn_data.get('m', 0), conn_data.get('g', 0))
+
+        protocol = protocol.lower()
+
+        action = "connect"
+        if "-" in protocol:
+            (protocol, action) = protocol.split("-")
+
+            if action == "connection":
+                action = "connect"
+            elif action == "listening":
+                action = 'listen'
+            else:
+                #TODO remove this and throw an exception when we are confident about our normalization
+                sys.stderr.write("Unknown connection action {} -- tell BSMALL".format(action))
+
+        #TODO remove this and throw an exception when we are confident about our normalization
+        if protocol not in ('tcp', 'udp', 'icmp', 'gre'):
+            sys.stderr.write("Unknown protocol {} -- tell BSMALL".format(protocol))
+
+        fa = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c, \
+                 malware_c, grayware_c)
+        fa._raw_line = conn_data['line']
+
+        return fa
 
 #dns
 class AFDnsAnalysis(AutoFocusAnalysis):
@@ -779,12 +869,25 @@ class AFDnsAnalysis(AutoFocusAnalysis):
 class AFFileAnalysis(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, file_action, file_name, benign, malware, grayware):
+        #: str: The platform the sample analysis is from
         self.platform = platform
-        self.benign_count = benign
-        self.malware_count = malware
-        self.grayware_count = grayware
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The process name that has attempted access the file
         self.process_name = process_name
+
+        #: str: The attempted action taken on a file
         self.file_action = file_action
+
+        #: str: The affected file's name
         self.file_name = file_name
 
     @classmethod
@@ -792,8 +895,9 @@ class AFFileAnalysis(AutoFocusAnalysis):
 
         line_parts = file_data['line'].split(" , ")
         (process_name, file_action, file_name) = line_parts[0:3]
+        (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
 
-        fa = cls(platform, process_name, file_action, file_name, file_data['b'], file_data['m'], file_data['g'])
+        fa = cls(platform, process_name, file_action, file_name, benign_c, malware_c, grayware_c)
         fa._raw_line = file_data['line']
 
         return fa
@@ -861,21 +965,40 @@ _analysis_class_map['user_agent'] = AFUserAgentAnalysis
 
 if __name__ == "__main__":
 
-    tag = AFTag.get("Unit42.CryptoWall")
-    pprint(tag.__dict__)
-    print len(AFTag.list())
+    test_hashes = (
+        "438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9",
+    )
 
     # Get a sample by hash
-    sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+    for sample_hash in test_hashes:
 
-    for analysis in sample.get_analyses():
-        print type(analysis)
+        sample = AFSample.get(sample_hash)
 
-    for tag in sample.tags:
-        print tag.public_name
-
-    sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
-    sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
+        for analysis in sample.get_analyses(['behavior_type']):
+            print type(analysis)
 
 
+    # Connection testing hashes
 
+#    test_hashes = (
+#        "7a1f5a5fe0a3bd5031da504d67e224f35b96fd1fd9771f67bc0936999d4d292b", # Has udp
+#        "90c6cef834a7528e6771959c2e093c230866167eb8d1f16362a5128c0c35694f", # Has tcp-connection, udp-connection
+#        "0bb615a781035e4d0143582ea5a0a4c9486625585de1cd8e3a8669cd2a1b29f3"  # Has tcp-listen
+#    )
+#
+#    # Get a sample by hash
+#    for sample_hash in test_hashes:
+#
+#        sample = AFSample.get(sample_hash)
+#
+#        for analysis in sample.get_analyses(['connection']):
+#            print type(analysis)
+#
+##        for tag in sample.tags:
+##            print tag.public_name
+#
+#    for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tasks.connection","operator":"contains","value":"tcp"},{"field":"sample.tag_scope","operator":"is","value":"unit42"}]}'):
+#
+#        for analysis in sample.get_analyses(['connection']):
+#
+#            print type(analysis)
