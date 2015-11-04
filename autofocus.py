@@ -628,12 +628,18 @@ class AFSample(object):
         Raises:
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
+        Notes:
+            sections can also be a string or AutoFocusAnalysis subclass
         """
+
+        mapped_sections = []
 
         if not sections:
             sections = ALL_ANALYSIS_SECTIONS
 
-        mapped_sections = []
+        if not (type(sections) is list or type(sections) is tuple):
+            sections = [sections]
+
         for section in sections:
             if type(section) is not str:
                 mapped_sections.append(_class_analysis_map[section])
@@ -1313,6 +1319,12 @@ if __name__ == "__main__":
 
     # user agent fragments
     sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
+
+    for analysis in sample.get_analyses(AFUserAgentFragments):
+        print analysis
+
+    for analysis in sample.get_analyses('user_agent'):
+        print analysis
 
     for analysis in sample.get_analyses([AFUserAgentFragments]):
         print analysis
