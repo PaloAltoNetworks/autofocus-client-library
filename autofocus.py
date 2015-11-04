@@ -69,6 +69,8 @@ class AFServerError(Exception):
         #: requests.Response: response from the server
         self.response = response
 
+class AutoFocusObject(object):
+    pass
 
 class AutoFocusAPI(object):
     """
@@ -224,10 +226,10 @@ class AutoFocusAPI(object):
                 yield hit
 
 # TODO: Create a class for AFTag.refs
-class AFTagReference(object):
+class AFTagReference(AutoFocusObject):
     pass
 
-class AFTag(object):
+class AFTag(AutoFocusObject):
     """
     The AFTag should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
     be instantiated directly. Instead, call the various class method factories to get instance(s) of AFTag. See:
@@ -506,7 +508,7 @@ class AFSampleFactory(AutoFocusAPI):
 
         return res
 
-class AFSample(object):
+class AFSample(AutoFocusObject):
     """
     The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
     be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
@@ -738,7 +740,7 @@ class AFSample(object):
         """
         return AFSampleFactory.get(hash)
 
-class AutoFocusAnalysis(object):
+class AutoFocusAnalysis(AutoFocusObject):
 
     def __init__(self, obj_data):
         for k,v in obj_data.items():
@@ -1317,20 +1319,38 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # user agent fragments
-    sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
+    # aggregate testing
+    post_data = {
+        "query": {
+            "operator": "all",
+            "field" : "sha256",
+            "size" : "100",
+            "children": [
+                {
+                "field": "sample.malware",
+                "operator": "is",
+                "value": "1"
+                },
+            ]
+        }
+    }
+    for row in AFSampleFactory._api_request("/sessions/aggregate/search/global", post_data):
+        print row
 
-    for analysis in sample.get_analyses(AFUserAgentFragments):
-        print analysis
-
-    for analysis in sample.get_analyses('user_agent'):
-        print analysis
-
-    for analysis in sample.get_analyses([AFUserAgentFragments]):
-        print analysis
-
-    for analysis in sample.get_analyses(['user_agent']):
-        print analysis
+#    # user agent fragments
+#    sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
+#
+#    for analysis in sample.get_analyses(AFUserAgentFragments):
+#        print analysis
+#
+#    for analysis in sample.get_analyses('user_agent'):
+#        print analysis
+#
+#    for analysis in sample.get_analyses([AFUserAgentFragments]):
+#        print analysis
+#
+#    for analysis in sample.get_analyses(['user_agent']):
+#        print analysis
 
 #    # service activity
 #    sample = AFSample.get("652c70c144f0d2d177695c5dc47ed9fcc1606ebdf78a636cace91988f12185fa")
