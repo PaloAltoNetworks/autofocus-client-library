@@ -1157,7 +1157,50 @@ class AFProcessActivity(AutoFocusAnalysis):
 
 #registry
 class AFRegistryActivity(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, process_name, action, registry_key, parameters, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: Optional(str): The name of the process affecting the registry
+        self.process_name = process_name
+
+        #: str: The function name called or the action affecting the parameters
+        self.action = action
+
+        #: str: The registry key being affected
+        self.registry_key = registry_key
+
+        #: array[str]: arguments passed to the function
+        self.parameters = parameters
+
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, registry_data):
+
+        line_parts =  registry_data['line'].split(" , ")
+        (process_name, action) = line_parts[0:2]
+        registry_key = line_parts[2]
+        parameters = line_parts[2:]
+        (benign_c, malware_c, grayware_c) = (registry_data.get('b', 0), registry_data.get('m', 0), registry_data.get('g', 0))
+
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
+
+        ma = cls(platform, process_name, action, registry_key, parameters, benign_c, malware_c, grayware_c)
+        ma._raw_line = registry_data['line']
+
+        return ma
 
 #service
 class AFServiceActivity(AutoFocusAnalysis):
@@ -1204,9 +1247,15 @@ if __name__ == "__main__":
     # process activity
     sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
 
-    for analysis in sample.get_analyses(['process']):
+    for analysis in sample.get_analyses(['registry']):
         print analysis
 
+#    # process activity
+#    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+#
+#    for analysis in sample.get_analyses(['process']):
+#        print analysis
+#
 #    # Miscellaneous
 #    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
 #
