@@ -1064,8 +1064,45 @@ class AFMutexAnalysis(AutoFocusAnalysis):
         return ma
 
 #misc
-class AFMiscellaneousAnalysis(AutoFocusAnalysis):
-    pass
+class AFApiActivity(AutoFocusAnalysis):
+
+    def __init__(self, platform, process_name, function_name, function_arguments, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The name of the process affecting the mutex
+        self.process_name = process_name
+
+        #: str: The function called to affect the mutex (At the time of this writing, have only seen CreateMutexW)
+        self.function_name = function_name
+
+        #: array[str]: arguments passed to the function
+        self.function_arguments = function_arguments
+
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, misc_data):
+
+        line_parts =  misc_data['line'].split(" , ")
+        (process_name, function_name) = line_parts[0:2]
+        func_args = line_parts[2:]
+        (benign_c, malware_c, grayware_c) = (misc_data.get('b', 0), misc_data.get('m', 0), misc_data.get('g', 0))
+
+        ma = cls(platform, process_name, function_name, func_args, benign_c, malware_c, grayware_c)
+        ma._raw_line = misc_data['line']
+
+        return ma
+
 #process
 class AFProcessAnalysis(AutoFocusAnalysis):
     pass
@@ -1100,7 +1137,7 @@ _analysis_class_map['file'] = AFFileAnalysis
 _analysis_class_map['http'] = AFHttpAnalysis
 _analysis_class_map['japi'] = AFJavaApiAnalysis
 _analysis_class_map['mutex'] = AFMutexAnalysis
-_analysis_class_map['misc'] = AFMiscellaneousAnalysis
+_analysis_class_map['misc'] = AFApiActivity
 _analysis_class_map['process'] = AFProcessAnalysis
 _analysis_class_map['registry'] = AFRegistryAnalysis
 _analysis_class_map['service'] = AFServiceAnalysis
@@ -1116,10 +1153,16 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # Mutex Analysis
-    for sample in AFSample.search(field = "sample.tasks.mutex", operator = "has any value", value = ""):
-        for analysis in sample.get_analyses(['mutex']):
-            print analysis.action
+    # Miscellaneous
+    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+
+    for analysis in sample.get_analyses(['misc']):
+        print analysis
+
+#    # Mutex Analysis
+#    for sample in AFSample.search(field = "sample.tasks.mutex", operator = "has any value", value = ""):
+#        for analysis in sample.get_analyses(['mutex']):
+#            print analysis.action
 
 #    # Java API  Analysis
 #    sample = AFSample.get("2b69dcee474f802bab494983d1329d2dc3f7d7bb4c9f16836efc794284276c8e")
