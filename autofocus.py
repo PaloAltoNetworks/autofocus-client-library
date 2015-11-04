@@ -996,7 +996,34 @@ class AFHttpAnalysis(AutoFocusAnalysis):
 
 #japi
 class AFJavaApiAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, activity, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        # TODO: Very generic. Needs more context
+        #: str: A string representing java API activity
+        self.activity = activity
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, japi_data):
+
+        (benign_c, malware_c, grayware_c) = (japi_data.get('b', 0), japi_data.get('m', 0), japi_data.get('g', 0))
+
+        ja = cls(platform, japi_data['line'], benign_c, malware_c, grayware_c)
+        ja._raw_line = japi_data['line']
+
+        return ja
 
 #mutex
 class AFMutexAnalysis(AutoFocusAnalysis):
@@ -1056,11 +1083,17 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # HTTP Analysis
-    sample = AFSample.get("c1dc94d92c0ea361636d2f08b63059848ec1fb971678bfc34bcb4a960a120f7e")
+    # Java API  Analysis
+    sample = AFSample.get("2b69dcee474f802bab494983d1329d2dc3f7d7bb4c9f16836efc794284276c8e")
 
-    for analysis in sample.get_analyses(['http']):
+    for analysis in sample.get_analyses(['japi']):
         print type(analysis)
+
+#    # HTTP Analysis
+#    sample = AFSample.get("c1dc94d92c0ea361636d2f08b63059848ec1fb971678bfc34bcb4a960a120f7e")
+#
+#    for analysis in sample.get_analyses(['http']):
+#        print type(analysis)
 
 #    # DNS Analysis
 #    sample = AFSample.get("21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae85ac6500")
