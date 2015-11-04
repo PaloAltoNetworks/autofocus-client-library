@@ -609,6 +609,12 @@ class AFSample(object):
 
         return value
 
+    def get_activity(self, sections, platforms):
+        """
+        Notes:
+            Points to AFSample.get_analyses. See documentation there for details
+        """
+        return self.get_analyses(sections, platforms)
 
     def get_analyses(self, sections = None, platforms = ["win7", "winxp", "staticAnalyzer"]):
         """
@@ -627,8 +633,15 @@ class AFSample(object):
         if not sections:
             sections = ALL_ANALYSIS_SECTIONS
 
+        mapped_sections = []
+        for section in sections:
+            if type(section) is not str:
+                mapped_sections.append(_class_analysis_map[section])
+            else:
+                mapped_sections.append(section)
+
         resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", \
-                    post_data = { "sections" : sections, "platforms" : platforms }).json()
+                    post_data = { "sections" : mapped_sections, "platforms" : platforms }).json()
 
         analyses = []
 
@@ -1204,11 +1217,65 @@ class AFRegistryActivity(AutoFocusAnalysis):
 
 #service
 class AFServiceActivity(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, process_name, action, parameters, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: Optional(str): The name of the process affecting the service
+        self.process_name = process_name
+
+        #: str: The function name called or the action affecting the parameters
+        self.action = action
+
+        #: array[str]: arguments passed to the function
+        self.parameters = parameters
+
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, service_data):
+
+        line_parts =  service_data['line'].split(" , ")
+        (process_name, action) = line_parts[0:2]
+        parameters = line_parts[2:]
+        (benign_c, malware_c, grayware_c) = (service_data.get('b', 0), service_data.get('m', 0), service_data.get('g', 0))
+
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
+
+        ma = cls(platform, process_name, action, parameters, benign_c, malware_c, grayware_c)
+        ma._raw_line = service_data['line']
+
+        return ma
 
 #user_agent
-class AFUserAgentActivity(AutoFocusAnalysis):
-    pass
+class AFUserAgentFragments(AutoFocusAnalysis):
+
+    def __init__(self, platform, fragment):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: str: A string representing a fragment of the user agent (stripping fluff, ie "Mozilla/5.0")
+        self.fragment = fragment
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, ua_data):
+
+        ba = cls(platform, ua_data['line'])
+        ba._raw_line = ua_data['line']
+
+        return ba
 
 _analysis_class_map['apk_defined_activity'] = AFApkActivityAnalysis
 _analysis_class_map['apk_defined_intent_filter'] = AFApkIntentFilterAnalysis
@@ -1232,7 +1299,7 @@ _analysis_class_map['misc'] = AFApiActivity
 _analysis_class_map['process'] = AFProcessActivity
 _analysis_class_map['registry'] = AFRegistryActivity
 _analysis_class_map['service'] = AFServiceActivity
-_analysis_class_map['user_agent'] = AFUserAgentActivity
+_analysis_class_map['user_agent'] = AFUserAgentFragments
 
 for k,v in _analysis_class_map.items():
     _class_analysis_map[v] = k
@@ -1244,11 +1311,26 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # process activity
-    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+    # user agent fragments
+    sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
 
-    for analysis in sample.get_analyses(['registry']):
+    for analysis in sample.get_analyses([AFUserAgentFragments]):
         print analysis
+
+    for analysis in sample.get_analyses(['user_agent']):
+        print analysis
+
+#    # service activity
+#    sample = AFSample.get("652c70c144f0d2d177695c5dc47ed9fcc1606ebdf78a636cace91988f12185fa")
+#
+#    for analysis in sample.get_analyses(['service']):
+#        print analysis
+
+#    # process activity
+#    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+#
+#    for analysis in sample.get_analyses(['registry']):
+#        print analysis
 
 #    # process activity
 #    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
