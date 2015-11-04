@@ -793,7 +793,7 @@ class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
         return ba
 
 #connection
-class AFConnectionAnalysis(AutoFocusAnalysis):
+class AFConnectionActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, \
                  benign, malware, grayware):
@@ -879,7 +879,7 @@ class AFConnectionAnalysis(AutoFocusAnalysis):
         return ca
 
 #dns
-class AFDnsAnalysis(AutoFocusAnalysis):
+class AFDnsActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, query, response, type, benign, malware, grayware):
 
@@ -917,7 +917,7 @@ class AFDnsAnalysis(AutoFocusAnalysis):
         return da
 
 #file
-class AFFileAnalysis(AutoFocusAnalysis):
+class AFFileActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, file_action, file_name, benign, malware, grayware):
         #: str: The platform the sample analysis is from
@@ -957,7 +957,7 @@ class AFFileAnalysis(AutoFocusAnalysis):
         return fa
 
 #http
-class AFHttpAnalysis(AutoFocusAnalysis):
+class AFHttpActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, host, method, url, user_agent, benign, malware, grayware):
 
@@ -998,7 +998,7 @@ class AFHttpAnalysis(AutoFocusAnalysis):
         return ha
 
 #japi
-class AFJavaApiAnalysis(AutoFocusAnalysis):
+class AFJavaApiActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, activity, benign, malware, grayware):
 
@@ -1029,7 +1029,7 @@ class AFJavaApiAnalysis(AutoFocusAnalysis):
         return ja
 
 #mutex
-class AFMutexAnalysis(AutoFocusAnalysis):
+class AFMutexActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, function_name, mutex_name, benign, malware, grayware):
 
@@ -1113,7 +1113,7 @@ class AFApiActivity(AutoFocusAnalysis):
         return ma
 
 #process
-class AFProcessAnalysis(AutoFocusAnalysis):
+class AFProcessActivity(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, action, parameters, benign, malware, grayware):
 
@@ -1156,15 +1156,15 @@ class AFProcessAnalysis(AutoFocusAnalysis):
         return ma
 
 #registry
-class AFRegistryAnalysis(AutoFocusAnalysis):
+class AFRegistryActivity(AutoFocusAnalysis):
     pass
 
 #service
-class AFServiceAnalysis(AutoFocusAnalysis):
+class AFServiceActivity(AutoFocusAnalysis):
     pass
 
 #user_agent
-class AFUserAgentAnalysis(AutoFocusAnalysis):
+class AFUserAgentActivity(AutoFocusAnalysis):
     pass
 
 _analysis_class_map['apk_defined_activity'] = AFApkActivityAnalysis
@@ -1179,17 +1179,17 @@ _analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
 _analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
 _analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
 _analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis
-_analysis_class_map['connection'] = AFConnectionAnalysis
-_analysis_class_map['dns'] = AFDnsAnalysis
-_analysis_class_map['file'] = AFFileAnalysis
-_analysis_class_map['http'] = AFHttpAnalysis
-_analysis_class_map['japi'] = AFJavaApiAnalysis
-_analysis_class_map['mutex'] = AFMutexAnalysis
+_analysis_class_map['connection'] = AFConnectionActivity
+_analysis_class_map['dns'] = AFDnsActivity
+_analysis_class_map['file'] = AFFileActivity
+_analysis_class_map['http'] = AFHttpActivity
+_analysis_class_map['japi'] = AFJavaApiActivity
+_analysis_class_map['mutex'] = AFMutexActivity
 _analysis_class_map['misc'] = AFApiActivity
-_analysis_class_map['process'] = AFProcessAnalysis
-_analysis_class_map['registry'] = AFRegistryAnalysis
-_analysis_class_map['service'] = AFServiceAnalysis
-_analysis_class_map['user_agent'] = AFUserAgentAnalysis
+_analysis_class_map['process'] = AFProcessActivity
+_analysis_class_map['registry'] = AFRegistryActivity
+_analysis_class_map['service'] = AFServiceActivity
+_analysis_class_map['user_agent'] = AFUserAgentActivity
 
 for k,v in _analysis_class_map.items():
     _class_analysis_map[v] = k
@@ -1198,14 +1198,13 @@ for k,v in _analysis_class_map.items():
 # Platforms
 # win7, winxp, staticAnalyzer
 
-
 if __name__ == "__main__":
-
-    # Miscellaneous
-    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
-
-    for analysis in sample.get_analyses(['process']):
-        print analysis
+    pass
+#    # process activity
+#    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+#
+#    for analysis in sample.get_analyses(['process']):
+#        print analysis
 
 #    # Miscellaneous
 #    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
