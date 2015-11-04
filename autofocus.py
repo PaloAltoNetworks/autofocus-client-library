@@ -955,7 +955,44 @@ class AFFileAnalysis(AutoFocusAnalysis):
 
 #http
 class AFHttpAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, host, method, url, user_agent, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The host the HTTP connection was made to
+        self.host = host
+
+        #: str: The method used in the requesty
+        self.method = method
+
+        #: str: The url of the request
+        self.url = url
+
+        #: str: The user agent of the request
+        self.user_agent = user_agent
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, http_data):
+
+        line_parts = http_data['line'].split(" , ", 3)
+        (host, method, url, user_agent) = line_parts[0:4]
+        (benign_c, malware_c, grayware_c) = (http_data.get('b', 0), http_data.get('m', 0), http_data.get('g', 0))
+
+        ha = cls(platform,host, method, url, user_agent, benign_c, malware_c, grayware_c)
+        ha._raw_line = http_data['line']
+
+        return ha
 
 #japi
 class AFJavaApiAnalysis(AutoFocusAnalysis):
@@ -1019,11 +1056,17 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # DNS Analysis
-    sample = AFSample.get("21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae85ac6500")
+    # HTTP Analysis
+    sample = AFSample.get("c1dc94d92c0ea361636d2f08b63059848ec1fb971678bfc34bcb4a960a120f7e")
 
-    for analysis in sample.get_analyses(['dns']):
+    for analysis in sample.get_analyses(['http']):
         print type(analysis)
+
+#    # DNS Analysis
+#    sample = AFSample.get("21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae85ac6500")
+#
+#    for analysis in sample.get_analyses(['dns']):
+#        print type(analysis)
 
     # Behavior analysis
 #    sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9")
