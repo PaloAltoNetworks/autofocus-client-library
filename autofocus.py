@@ -771,10 +771,15 @@ class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
 #behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
 
+    def __init__(self, behavior):
+
+        #: str: A string representing a behavior the sample exhibits
+        self.behavior = behavior
+
     @classmethod
     def parse_auto_focus_response(cls, platform, conn_data):
 
-        return conn_data
+        return cls(conn_data['line'])
 
 #connection
 class AFConnectionAnalysis(AutoFocusAnalysis):
@@ -965,17 +970,10 @@ _analysis_class_map['user_agent'] = AFUserAgentAnalysis
 
 if __name__ == "__main__":
 
-    test_hashes = (
-        "438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9",
-    )
+    sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9")
 
-    # Get a sample by hash
-    for sample_hash in test_hashes:
-
-        sample = AFSample.get(sample_hash)
-
-        for analysis in sample.get_analyses(['behavior_type']):
-            print type(analysis)
+    for analysis in sample.get_analyses(['behavior_type']):
+        print type(analysis)
 
 
     # Connection testing hashes
