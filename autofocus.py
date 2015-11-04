@@ -6,9 +6,10 @@ import autofocus_config
 
 AF_APIKEY = autofocus_config.AF_APIKEY
 
-# A dictionary for mapping AutoFocus Analysis Response objects
-# to their corresponding normalization classes
+# A dictionaries for mapping AutoFocus Analysis Response objects
+# to their corresponding normalization classes and vice-versa
 _analysis_class_map = {}
+_class_analysis_map = {}
 
 ALL_ANALYSIS_SECTIONS = (
     'apk_defined_activity', 'apk_defined_intent_filter', 'apk_defined_receiver',
@@ -720,9 +721,13 @@ class AFSample(object):
 
 class AutoFocusAnalysis(object):
 
+    def __init__(self, obj_data):
+        for k,v in obj_data.items():
+            setattr(self, k, v)
+
     @classmethod
     def parse_auto_focus_response(cls, platform, resp_data):
-        raise NotImplementedError()
+        return cls(resp_data)
 
 #apk_defined_activity
 class AFApkActivityAnalysis(AutoFocusAnalysis):
@@ -771,7 +776,10 @@ class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
 #behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
 
-    def __init__(self, behavior):
+    def __init__(self, platform, behavior):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
 
         #: str: A string representing a behavior the sample exhibits
         self.behavior = behavior
@@ -779,13 +787,17 @@ class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
     @classmethod
     def parse_auto_focus_response(cls, platform, conn_data):
 
-        return cls(conn_data['line'])
+        ba = cls(platform, conn_data['line'])
+        ba._raw_line = conn_data['line']
+
+        return ba
 
 #connection
 class AFConnectionAnalysis(AutoFocusAnalysis):
 
     def __init__(self, platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, \
                  benign, malware, grayware):
+
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -860,15 +872,49 @@ class AFConnectionAnalysis(AutoFocusAnalysis):
         if protocol not in ('tcp', 'udp', 'icmp', 'gre'):
             sys.stderr.write("Unknown protocol {} -- tell BSMALL".format(protocol))
 
-        fa = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c, \
+        ca = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c, \
                  malware_c, grayware_c)
-        fa._raw_line = conn_data['line']
+        ca._raw_line = conn_data['line']
 
-        return fa
+        return ca
 
 #dns
 class AFDnsAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, query, response, type, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string of the query preformed
+        self.query = query
+
+        #: str: The response from the query performed
+        self.response = response
+
+        #: str: The type of request performed
+        self.type = type
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, dns_data):
+
+        line_parts = dns_data['line'].split(" , ")
+        (query, response, type) = line_parts[0:3]
+        (benign_c, malware_c, grayware_c) = (dns_data.get('b', 0), dns_data.get('m', 0), dns_data.get('g', 0))
+
+        da = cls(platform,query, response, type, benign_c, malware_c, grayware_c)
+        da._raw_line = dns_data['line']
+
+        return da
 
 #file
 class AFFileAnalysis(AutoFocusAnalysis):
@@ -963,6 +1009,9 @@ _analysis_class_map['registry'] = AFRegistryAnalysis
 _analysis_class_map['service'] = AFServiceAnalysis
 _analysis_class_map['user_agent'] = AFUserAgentAnalysis
 
+for k,v in _analysis_class_map.items():
+    _class_analysis_map[v] = k
+
 
 # Platforms
 # win7, winxp, staticAnalyzer
@@ -970,10 +1019,17 @@ _analysis_class_map['user_agent'] = AFUserAgentAnalysis
 
 if __name__ == "__main__":
 
-    sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9")
+    # DNS Analysis
+    sample = AFSample.get("21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae85ac6500")
 
-    for analysis in sample.get_analyses(['behavior_type']):
+    for analysis in sample.get_analyses(['dns']):
         print type(analysis)
+
+    # Behavior analysis
+#    sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9")
+#
+#    for analysis in sample.get_analyses(['behavior_type']):
+#        print type(analysis)
 
 
     # Connection testing hashes
