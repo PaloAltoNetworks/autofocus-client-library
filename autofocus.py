@@ -846,7 +846,7 @@ class AFConnectionAnalysis(AutoFocusAnalysis):
         elif len(line_parts) == 3:
             (process_name, protocol, src_port) = line_parts[0:3]
 
-        if process_name.lower() == "unknown":
+        if not process_name or process_name.lower() in (" ", "unknown"):
             process_name = None
 
         if country_code == "" or country_code == "N/A":
@@ -932,7 +932,7 @@ class AFFileAnalysis(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-        #: str: The process name that has attempted access the file
+        #: Optional[str]: The name of the process affecting the file
         self.process_name = process_name
 
         #: str: The attempted action taken on a file
@@ -947,6 +947,9 @@ class AFFileAnalysis(AutoFocusAnalysis):
         line_parts = file_data['line'].split(" , ")
         (process_name, file_action, file_name) = line_parts[0:3]
         (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
+
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
 
         fa = cls(platform, process_name, file_action, file_name, benign_c, malware_c, grayware_c)
         fa._raw_line = file_data['line']
@@ -1042,7 +1045,7 @@ class AFMutexAnalysis(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-        #: str: The name of the process affecting the mutex
+        #: Optional[str]: The name of the process affecting the mutex
         self.process_name = process_name
 
         #: str: The function called to affect the mutex (At the time of this writing, have only seen CreateMutexW)
@@ -1057,6 +1060,9 @@ class AFMutexAnalysis(AutoFocusAnalysis):
 
         (process_name, function_name, mutex_name) = mutex_data['line'].split(" , ")
         (benign_c, malware_c, grayware_c) = (mutex_data.get('b', 0), mutex_data.get('m', 0), mutex_data.get('g', 0))
+
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
 
         ma = cls(platform, process_name, function_name, mutex_name, benign_c, malware_c, grayware_c)
         ma._raw_line = mutex_data['line']
@@ -1080,10 +1086,10 @@ class AFApiActivity(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-        #: str: The name of the process affecting the mutex
+        #: Optional[str]: The name of the process affecting the mutex
         self.process_name = process_name
 
-        #: str: The function called to affect the mutex (At the time of this writing, have only seen CreateMutexW)
+        #: str: The function called
         self.function_name = function_name
 
         #: array[str]: arguments passed to the function
@@ -1098,6 +1104,9 @@ class AFApiActivity(AutoFocusAnalysis):
         func_args = line_parts[2:]
         (benign_c, malware_c, grayware_c) = (misc_data.get('b', 0), misc_data.get('m', 0), misc_data.get('g', 0))
 
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
+
         ma = cls(platform, process_name, function_name, func_args, benign_c, malware_c, grayware_c)
         ma._raw_line = misc_data['line']
 
@@ -1105,7 +1114,46 @@ class AFApiActivity(AutoFocusAnalysis):
 
 #process
 class AFProcessAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, process_name, action, parameters, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: Optional(str): The name of the process affecting the process
+        self.process_name = process_name
+
+        #: str: The function name called or the action affecting the parameters
+        self.action = action
+
+        #: array[str]: arguments passed to the function
+        self.parameters = parameters
+
+
+    @classmethod
+    def parse_auto_focus_response(cls, platform, misc_data):
+
+        line_parts =  misc_data['line'].split(" , ")
+        (process_name, action) = line_parts[0:2]
+        parameters = line_parts[2:]
+        (benign_c, malware_c, grayware_c) = (misc_data.get('b', 0), misc_data.get('m', 0), misc_data.get('g', 0))
+
+        if not process_name or process_name.lower() in (" ", "unknown"):
+            process_name = None
+
+        ma = cls(platform, process_name, action, parameters, benign_c, malware_c, grayware_c)
+        ma._raw_line = misc_data['line']
+
+        return ma
 
 #registry
 class AFRegistryAnalysis(AutoFocusAnalysis):
@@ -1156,8 +1204,14 @@ if __name__ == "__main__":
     # Miscellaneous
     sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
 
-    for analysis in sample.get_analyses(['misc']):
+    for analysis in sample.get_analyses(['process']):
         print analysis
+
+#    # Miscellaneous
+#    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+#
+#    for analysis in sample.get_analyses(['misc']):
+#        print analysis
 
 #    # Mutex Analysis
 #    for sample in AFSample.search(field = "sample.tasks.mutex", operator = "has any value", value = ""):
