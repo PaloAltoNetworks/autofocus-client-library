@@ -1193,18 +1193,19 @@ _analysis_class_map['user_agent'] = AFUserAgentActivity
 
 for k,v in _analysis_class_map.items():
     _class_analysis_map[v] = k
+    v.autofocus_section = k
 
 
 # Platforms
 # win7, winxp, staticAnalyzer
 
 if __name__ == "__main__":
-    pass
-#    # process activity
-#    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
-#
-#    for analysis in sample.get_analyses(['process']):
-#        print analysis
+
+    # process activity
+    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
+
+    for analysis in sample.get_analyses(['process']):
+        print analysis
 
 #    # Miscellaneous
 #    sample = AFSample.get("09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde")
