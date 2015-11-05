@@ -1,0 +1,1529 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>autofocus &mdash; AutoFocus Client Library 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="AutoFocus Client Library 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for autofocus</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/env python</span>
+<span class="kn">import</span> <span class="nn">requests</span><span class="o">,</span> <span class="nn">json</span><span class="o">,</span> <span class="nn">sys</span><span class="o">,</span> <span class="nn">time</span><span class="o">,</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">pprint</span> <span class="kn">import</span> <span class="n">pprint</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">autofocus_config</span>
+
+<span class="n">AF_APIKEY</span> <span class="o">=</span> <span class="n">autofocus_config</span><span class="o">.</span><span class="n">AF_APIKEY</span>
+
+<span class="c"># A dictionaries for mapping AutoFocus Analysis Response objects</span>
+<span class="c"># to their corresponding normalization classes and vice-versa</span>
+<span class="n">_analysis_class_map</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">_class_analysis_map</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="n">ALL_ANALYSIS_SECTIONS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s">&#39;apk_defined_activity&#39;</span><span class="p">,</span> <span class="s">&#39;apk_defined_intent_filter&#39;</span><span class="p">,</span> <span class="s">&#39;apk_defined_receiver&#39;</span><span class="p">,</span>
+    <span class="s">&#39;apk_defined_sensor&#39;</span><span class="p">,</span> <span class="s">&#39;apk_defined_service&#39;</span><span class="p">,</span> <span class="s">&#39;apk_embeded_url&#39;</span><span class="p">,</span>
+    <span class="s">&#39;apk_requested_permission&#39;</span><span class="p">,</span> <span class="s">&#39;apk_sensitive_api_call&#39;</span><span class="p">,</span> <span class="s">&#39;apk_suspicious_api_call&#39;</span><span class="p">,</span>
+    <span class="s">&#39;apk_suspicious_file&#39;</span><span class="p">,</span> <span class="s">&#39;apk_suspicious_string&#39;</span><span class="p">,</span> <span class="s">&#39;behavior_type&#39;</span><span class="p">,</span> <span class="s">&#39;connection&#39;</span><span class="p">,</span>
+    <span class="s">&#39;dns&#39;</span><span class="p">,</span> <span class="s">&#39;file&#39;</span><span class="p">,</span> <span class="s">&#39;http&#39;</span><span class="p">,</span> <span class="s">&#39;japi&#39;</span><span class="p">,</span> <span class="s">&#39;mutex&#39;</span><span class="p">,</span> <span class="s">&#39;misc&#39;</span><span class="p">,</span> <span class="s">&#39;process&#39;</span><span class="p">,</span> <span class="s">&#39;registry&#39;</span><span class="p">,</span><span class="s">&#39;service&#39;</span><span class="p">,</span>
+    <span class="s">&#39;user_agent&#39;</span>
+<span class="p">)</span>
+
+<span class="c"># Useful information:</span>
+<span class="c">#</span>
+<span class="c"># * We&#39;re not doing any input validation in the client itself. We pass</span>
+<span class="c">#   the data to the API, and rely on 4XX errors to communicate invalid</span>
+<span class="c">#   requests. At the time this was written, the API DOES NOT validate search</span>
+<span class="c">#   values. So you can offer invalid IPs, such as 592.99.1.1 and it will</span>
+<span class="c">#   not balk. The result set will be empty, naturally.</span>
+
+<span class="n">_base_url</span> <span class="o">=</span> <span class="s">&quot;https://autofocus.paloaltonetworks.com/api/v0.9&quot;</span>
+<span class="n">_headers</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;Content-Type&quot;</span> <span class="p">:</span> <span class="s">&quot;application/json&quot;</span><span class="p">}</span>
+
+<div class="viewcode-block" id="NotLoaded"><a class="viewcode-back" href="../autofocus.html#autofocus.NotLoaded">[docs]</a><span class="k">class</span> <span class="nc">NotLoaded</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    NotLoaded is a class used internally by various classes in this module for handling when an attribute needs to be</span>
+<span class="sd">    lazy loaded. This class is not meant for general use.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AFClientError"><a class="viewcode-back" href="../autofocus.html#autofocus.AFClientError">[docs]</a><span class="k">class</span> <span class="nc">AFClientError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Notes:</span>
+<span class="sd">        AFClientError is an exception that&#39;s thrown when the client library is either used improperly, or offers invalid</span>
+<span class="sd">        data to the AutoFocus REST service</span>
+<span class="sd">    Args:</span>
+<span class="sd">        message (str): Message describing the error</span>
+<span class="sd">        response (Optional[requests.Response]): Optionally the response from the server in the case of on invalid request</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">response</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AFClientError</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+        <span class="c">#: str: a message describing the error</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+        <span class="c">#: Optional[requests.Response]: response from the server (May be None)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">response</span>
+</div>
+<div class="viewcode-block" id="AFServerError"><a class="viewcode-back" href="../autofocus.html#autofocus.AFServerError">[docs]</a><span class="k">class</span> <span class="nc">AFServerError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Notes:</span>
+<span class="sd">        AFServerError is an exception that&#39;s thrown when the AutoFocus REST service behaves unexpectedly</span>
+<span class="sd">    Args:</span>
+<span class="sd">        message (str): Message describing the error</span>
+<span class="sd">        response (requests.Response): the response from the server in the case of on invalid request</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AFServerError</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+        <span class="c">#: str: a message describing the error</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+        <span class="c">#: requests.Response: response from the server</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">response</span>
+</div>
+<span class="k">class</span> <span class="nc">_InvalidAnalysisData</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Private class meant to be used for skipping bad analysis data rows</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+<div class="viewcode-block" id="AutoFocusObject"><a class="viewcode-back" href="../autofocus.html#autofocus.AutoFocusObject">[docs]</a><span class="k">class</span> <span class="nc">AutoFocusObject</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AutoFocusAPI"><a class="viewcode-back" href="../autofocus.html#autofocus.AutoFocusAPI">[docs]</a><span class="k">class</span> <span class="nc">AutoFocusAPI</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for</span>
+<span class="sd">    general use and is core to this underlying client library</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">page_size</span> <span class="o">=</span> <span class="mi">2000</span>
+    <span class="n">search_operator</span> <span class="o">=</span> <span class="s">&quot;all&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">__str__</span><span class="p">()</span>
+    
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">__str__</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_api_request</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">post_data</span> <span class="o">=</span> <span class="p">{},</span> <span class="n">params</span> <span class="o">=</span> <span class="p">{}):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">AF_APIKEY</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;AF_APIKEY is not set. Library requires an APIKEY to be set&quot;</span><span class="p">)</span>
+            
+        <span class="n">post_data</span><span class="p">[</span><span class="s">&quot;apiKey&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AF_APIKEY</span>
+        
+        <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">_base_url</span> <span class="o">+</span> <span class="n">path</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">params</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">_headers</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">post_data</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">400</span> <span class="ow">and</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&lt;</span> <span class="mi">500</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AFClientError</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">_content</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">500</span> <span class="ow">and</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&lt;</span> <span class="mi">600</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">AFServerError</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">_content</span><span class="p">,</span> <span class="n">resp</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">resp</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_api_search_request</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">post_data</span><span class="p">):</span>
+
+        <span class="n">post_data</span><span class="p">[</span><span class="s">&quot;size&quot;</span><span class="p">]</span>   <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">page_size</span>
+        <span class="n">post_data</span><span class="p">[</span><span class="s">&quot;from&quot;</span><span class="p">]</span>   <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">post_data</span><span class="p">[</span><span class="s">&quot;sort&quot;</span><span class="p">]</span>   <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&quot;create_date&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s">&quot;order&quot;</span><span class="p">:</span> <span class="s">&quot;desc&quot;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;scope&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&quot;Global&quot;</span>
+
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+
+            <span class="c"># There is currently a hardcoded limitation for 4000 samples per query.</span>
+            <span class="c"># Hardcode StopIteration until that issue is addressed</span>
+            <span class="k">if</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;from&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">4000</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">StopIteration</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;from&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;size&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">4000</span><span class="p">:</span>
+                <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4000</span> <span class="o">-</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;from&#39;</span><span class="p">]</span>
+
+            <span class="c"># TODO: Remove the above logic once the result cap is removed</span>
+
+            <span class="n">init_query_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">init_query_resp</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">post_data</span> <span class="o">=</span> <span class="n">post_data</span><span class="p">)</span>
+            <span class="n">init_query_data</span> <span class="o">=</span> <span class="n">init_query_resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;from&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;size&#39;</span><span class="p">]</span>
+            <span class="n">af_cookie</span> <span class="o">=</span> <span class="n">init_query_data</span><span class="p">[</span><span class="s">&#39;af_cookie&#39;</span><span class="p">]</span>
+
+            <span class="n">resp_data</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">prev_resp_data</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                <span class="n">request_url</span> <span class="o">=</span> <span class="s">&quot;/&quot;</span> <span class="o">+</span> <span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;/&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s">&quot;/results/&quot;</span> <span class="o">+</span> <span class="n">af_cookie</span>
+
+                <span class="c"># Try our request. Check for AF Cookie going away, which is weird</span>
+                <span class="c"># Catch it and add more context. Then throw it up again</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">resp</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="n">request_url</span><span class="p">)</span>
+                    <span class="n">resp_data</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+                <span class="k">except</span> <span class="n">AFClientError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="c"># TODO: Can be removed once AF Cookie going away bug is fixed.</span>
+                    <span class="k">if</span> <span class="s">&quot;AF Cookie Not Found&quot;</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">AFClientError</span><span class="p">(</span><span class="s">&quot;Auto Focus Cookie has gone away after </span><span class="si">%d</span><span class="s"> queries taking </span><span class="si">%f</span><span class="s"> seconds. Server said percent complete was at </span><span class="si">%f</span><span class="s">, last query.&quot;</span> \
+                                        <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">init_query_time</span><span class="p">,</span> <span class="n">prev_resp_data</span><span class="p">[</span><span class="s">&#39;af_complete_percentage&#39;</span><span class="p">]),</span> <span class="n">e</span><span class="o">.</span><span class="n">response</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">e</span>
+
+                <span class="c"># If we&#39;ve gotten our bucket size worth of data, or the query has complete</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resp_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;hits&#39;</span><span class="p">,</span> <span class="p">[]))</span> <span class="o">==</span> <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;size&#39;</span><span class="p">]</span> \
+                        <span class="ow">or</span> <span class="n">resp_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;af_complete_percentage&#39;</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span> <span class="o">==</span> <span class="mi">100</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+                <span class="n">prev_resp_data</span> <span class="o">=</span> <span class="n">resp_data</span>
+
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">resp_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;hits&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">StopIteration</span><span class="p">()</span>
+
+            <span class="k">yield</span> <span class="n">resp_data</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_api_search</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c"># TODO: Needs alot of documentation to make this more clear for readers</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c"># Classes that inherit from AutoFocusAPI need to pass a search path as the </span>
+        <span class="c"># first arg to the protected _api_search method</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="n">post_data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&quot;query&quot;</span> <span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">kwargs</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="c"># Just do an or here, we&#39;ll do validation below</span>
+            <span class="k">if</span> <span class="s">&quot;field&quot;</span> <span class="ow">in</span> <span class="n">kwargs</span> <span class="ow">or</span> <span class="s">&quot;value&quot;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="n">post_data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s">&quot;query&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s">&quot;operator&quot;</span><span class="p">:</span> <span class="n">cls</span><span class="o">.</span><span class="n">search_operator</span><span class="p">,</span>
+                    <span class="s">&quot;children&quot;</span><span class="p">:</span> <span class="p">[]</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+
+            <span class="k">for</span> <span class="n">kwarg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>        
+     
+                <span class="c"># Check and make sure field and value are passed to search - req&#39;d</span>
+                <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;field&#39;</span><span class="p">,</span> <span class="s">&#39;value&#39;</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">arg</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwarg</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span>
+
+                <span class="c"># Build the searching paramaters to be passed to the _api_request method</span>
+                <span class="c"># _api_request will add the additional data needed to form a valid request</span>
+                <span class="n">post_data</span><span class="p">[</span><span class="s">&#39;query&#39;</span><span class="p">][</span><span class="s">&#39;children&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                    <span class="s">&quot;field&quot;</span><span class="p">:</span> <span class="n">kwarg</span><span class="p">[</span><span class="s">&#39;field&#39;</span><span class="p">],</span>
+                    <span class="s">&quot;operator&quot;</span><span class="p">:</span> <span class="n">kwarg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;operator&#39;</span><span class="p">,</span> <span class="s">&quot;is&quot;</span><span class="p">),</span>
+                    <span class="s">&quot;value&quot;</span><span class="p">:</span> <span class="n">kwarg</span><span class="p">[</span><span class="s">&#39;value&#39;</span><span class="p">]</span>
+                <span class="p">})</span>
+
+        <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_search_request</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">post_data</span> <span class="o">=</span> <span class="n">post_data</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">hit</span> <span class="ow">in</span> <span class="n">res</span><span class="p">[</span><span class="s">&#39;hits&#39;</span><span class="p">]:</span>
+                <span class="k">yield</span> <span class="n">hit</span>
+
+<span class="c"># TODO: Create a class for AFTag.refs</span></div>
+<div class="viewcode-block" id="AFTagReference"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagReference">[docs]</a><span class="k">class</span> <span class="nc">AFTagReference</span><span class="p">(</span><span class="n">AutoFocusObject</span><span class="p">):</span>
+    <span class="k">pass</span>
+</div>
+<div class="viewcode-block" id="AFTag"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTag">[docs]</a><span class="k">class</span> <span class="nc">AFTag</span><span class="p">(</span><span class="n">AutoFocusObject</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The AFTag should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT</span>
+<span class="sd">    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFTag. See:</span>
+<span class="sd">        AFTag.list</span>
+<span class="sd">        AFTag.get</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c">#: str: The backend compliant name for the tag. You most likely want public_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_name&quot;</span><span class="p">]</span>
+
+        <span class="c">#: str: the presentation name for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">public_name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;public_tag_name&quot;</span><span class="p">]</span>
+
+        <span class="c">#: int: the number of samples matching the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;count&quot;</span><span class="p">]</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;lasthit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;lasthit&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c"># Preserve the raw lasthit in a private variable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_hit</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;lasthit&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;lasthit&#39;</span><span class="p">]:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;lasthit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;lasthit&#39;</span><span class="p">],</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s"> %H:%M:%S&#39;</span><span class="p">)</span>
+
+        <span class="c">#: Optional[datetime]: the last time there was activity witnessed for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_hit</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;lasthit&quot;</span><span class="p">]</span>
+
+        <span class="c">#: str: the authors description of the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;description&quot;</span><span class="p">]</span>
+
+        <span class="c">#: str: The definition status for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_definition_status&quot;</span><span class="p">]</span>
+
+        <span class="c">#: int: The definition status id for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status_id</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_definition_status_id&quot;</span><span class="p">]</span>
+
+        <span class="c">#: str: The definition scope for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scope</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_definition_scope&quot;</span><span class="p">]</span>
+
+        <span class="c">#: int: The definition scoe id for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scope_id</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_definition_scope_id&quot;</span><span class="p">]</span>
+
+        <span class="c">#: str: The class for the tag. Need to break convention for reserved words in python</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tag_class</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;tag_class&quot;</span><span class="p">,</span> <span class="n">NotLoaded</span><span class="p">())</span>
+
+        <span class="c">#: int: The class id for the tag. Need to break convention for reserved words in python</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tag_class_id</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&quot;tag_class_id&quot;</span><span class="p">]</span>
+
+        <span class="c">#: Optiona[str]: The name of the customer who wrote the tag. Will be None if not recorded or you don&#39;t have permission to view it</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">customer_name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;customer_name&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: int: up votes for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">up_votes</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;up_votes&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">up_votes</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">up_votes</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c">#: int: Down votes for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">down_votes</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;down_votes&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">down_votes</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">down_votes</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c">#: List[str]: Comments for the given tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">comments</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;comments&quot;</span><span class="p">,</span> <span class="n">NotLoaded</span><span class="p">())</span>
+
+        <span class="c">#: List[str]: a list of references for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">references</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;refs&quot;</span><span class="p">,</span> <span class="n">NotLoaded</span><span class="p">())</span>
+
+        <span class="c">#: dict: a dictionary with comments in it? Don&#39;t we have comments above?</span>
+        <span class="c">#self.review = kwargs.get(&quot;review&quot;, NotLoaded())</span>
+
+        <span class="c">#: int: The support id for the tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">support_id</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;support_id&quot;</span><span class="p">,</span> <span class="n">NotLoaded</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+        <span class="c"># Not offered in the list controller, have to call get to lazy load:</span>
+        <span class="c">#      comments, refs, review, support_id</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;comments&#39;</span><span class="p">,</span> <span class="s">&#39;references&#39;</span><span class="p">,</span> <span class="s">&#39;review&#39;</span><span class="p">,</span> <span class="s">&#39;support_id&#39;</span><span class="p">,</span> <span class="s">&#39;tag_class&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">is</span> <span class="n">NotLoaded</span><span class="p">:</span>
+
+            <span class="c"># Reloading the data via the get method</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="n">AFTag</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">public_name</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+            <span class="c"># Current data models are inconsistent, need to throw a warning about defaulting to None here</span>
+            <span class="c"># TODO: Remove this once the objects returned by the REST service are made consistent.</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">is</span> <span class="n">NotLoaded</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;Unable to lazy load tag attribute, defaulting to None! tag:</span><span class="si">%s</span><span class="s"> attribute:</span><span class="si">%s</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">public_name</span><span class="p">,</span> <span class="n">attr</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTag.list"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTag.list">[docs]</a>    <span class="k">def</span> <span class="nf">list</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            scope (str): The scope of the tags you want listed, acceptable values are -</span>
+<span class="sd">                Visible, Private, Public, Unit42, Mine, Commodity. Defaults to Visible</span>
+<span class="sd">            sortBy (Optional[str]): The field to sort results by, acceptable values are - name, status, count, lasthit,</span>
+<span class="sd">                upVotes, downVotes. Defaults to name</span>
+<span class="sd">            order (str): The direction to sort, acceptable values are &quot;asc&quot; or &quot;desc&quot;, Defaults to asc</span>
+
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List[AFTag]: as list of AFTag objects based on the arguments offered.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            KeyError: Raises a key error when the tag does not exist</span>
+<span class="sd">            AFClientError: In the case that the client did something unexpected</span>
+<span class="sd">            AFServerError: In the case that the client did something unexpected</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            for tag in AFTag.list():</span>
+<span class="sd">                print tag.count</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">AFTagFactory</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTag.get"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTag.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            tag_name (str): The name of the tag to pull an object for</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            AFTag: an instance of AFTag for the given tag name</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            KeyError: Raises a key error when the tag does not exist</span>
+<span class="sd">            AFClientError: In the case that the client did something unexpected</span>
+<span class="sd">            AFServerError: In the case that the client did something unexpected</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            try:</span>
+<span class="sd">                tag = AFTag.get(&quot;Made up tag name&quot;)</span>
+<span class="sd">            except KeyError:</span>
+<span class="sd">                pass # Sample didn&#39;t exist</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">AFTagFactory</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tag_name</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="AFTagCache"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagCache">[docs]</a><span class="k">class</span> <span class="nc">AFTagCache</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTagCache.get"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagCache.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">tag_name</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">tag_name</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">None</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTagCache.add"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagCache.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag</span><span class="p">):</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">tag</span><span class="o">.</span><span class="n">public_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">tag</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">tag</span><span class="o">.</span><span class="n">public_name</span><span class="p">]</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTagCache.clear"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagCache.clear">[docs]</a>    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag</span><span class="p">):</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">tag</span><span class="o">.</span><span class="n">public_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+</div></div>
+<div class="viewcode-block" id="AFTagFactory"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagFactory">[docs]</a><span class="k">class</span> <span class="nc">AFTagFactory</span><span class="p">(</span><span class="n">AutoFocusAPI</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    AFTagFactory is a class to handle fetching an instantiating AFTag objects. See AFTag for details</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTagFactory.list"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagFactory.list">[docs]</a>    <span class="k">def</span> <span class="nf">list</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes: See AFTag.list for documentation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;scope&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;scope&quot;</span><span class="p">,</span> <span class="s">&quot;Visible&quot;</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;sortBy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;sortBy&quot;</span><span class="p">,</span> <span class="s">&quot;name&quot;</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;order&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;order&quot;</span><span class="p">,</span> <span class="s">&quot;asc&quot;</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageSize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">200</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageNum&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">resp_data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="s">&quot;/tags/&quot;</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">tag_data</span> <span class="ow">in</span> <span class="n">resp_data</span><span class="p">[</span><span class="s">&#39;tags&#39;</span><span class="p">]:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">AFTag</span><span class="p">(</span><span class="o">**</span><span class="n">tag_data</span><span class="p">))</span>
+
+        <span class="n">total_count</span> <span class="o">=</span> <span class="n">resp_data</span><span class="p">[</span><span class="s">&#39;total_count&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">total_count</span> <span class="o">&lt;=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageSize&#39;</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">results</span>
+
+        <span class="k">while</span> <span class="p">((</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageSize&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageNum&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageSize&#39;</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">total_count</span><span class="p">:</span>
+
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;pageNum&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="n">resp_data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="s">&quot;/tags/&quot;</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">tag_data</span> <span class="ow">in</span> <span class="n">resp_data</span><span class="p">[</span><span class="s">&#39;tags&#39;</span><span class="p">]:</span>
+                <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">AFTag</span><span class="p">(</span><span class="o">**</span><span class="n">tag_data</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">results</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFTagFactory.get"><a class="viewcode-back" href="../autofocus.html#autofocus.AFTagFactory.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes: See AFTag.get for documentation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tag</span> <span class="o">=</span> <span class="n">AFTagCache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tag_name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">:</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">resp</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="s">&quot;/tag/&quot;</span> <span class="o">+</span> <span class="n">tag_name</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">AFClientError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">code</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;No such tag exists&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">e</span>
+
+            <span class="n">tag</span> <span class="o">=</span> <span class="n">AFTagCache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">AFTag</span><span class="p">(</span><span class="o">**</span><span class="n">resp</span><span class="p">[</span><span class="s">&#39;tag&#39;</span><span class="p">]))</span>
+
+        <span class="k">return</span> <span class="n">tag</span>
+
+</div></div>
+<div class="viewcode-block" id="AFSession"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSession">[docs]</a><span class="k">class</span> <span class="nc">AFSession</span><span class="p">(</span><span class="n">AutoFocusAPI</span><span class="p">):</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSession.search"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSession.search">[docs]</a>    <span class="k">def</span> <span class="nf">search</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_search</span><span class="p">(</span><span class="s">&quot;/sessions/search&quot;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">AFSession</span><span class="p">(</span><span class="o">**</span><span class="n">res</span><span class="p">[</span><span class="s">&#39;_source&#39;</span><span class="p">])</span>
+</div></div>
+<div class="viewcode-block" id="AFSampleFactory"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSampleFactory">[docs]</a><span class="k">class</span> <span class="nc">AFSampleFactory</span><span class="p">(</span><span class="n">AutoFocusAPI</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    AFSampleFactory is a class to handle fetching an instantiating AFSample objects. See AFSample for details</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSampleFactory.search"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSampleFactory.search">[docs]</a>    <span class="k">def</span> <span class="nf">search</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes: See AFSample.search documentation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_api_search</span><span class="p">(</span><span class="s">&quot;/samples/search&quot;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">AFSample</span><span class="p">(</span><span class="o">**</span><span class="n">res</span><span class="p">[</span><span class="s">&#39;_source&#39;</span><span class="p">])</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSampleFactory.get"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSampleFactory.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="nb">hash</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes: See AFSample.get documentation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">r&#39;^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$&#39;</span><span class="p">,</span> <span class="nb">hash</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;Argument mush be a valid md5, sha1, or sha256 hash&quot;</span><span class="p">)</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">hash</span><span class="p">)</span> <span class="o">==</span> <span class="mi">32</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">field</span> <span class="o">=</span> <span class="s">&quot;sample.md5&quot;</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">hash</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="nb">hash</span><span class="p">)</span> <span class="o">==</span> <span class="mi">40</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">field</span> <span class="o">=</span> <span class="s">&quot;sample.sha1&quot;</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">hash</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="nb">hash</span><span class="p">)</span> <span class="o">==</span> <span class="mi">64</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">field</span> <span class="o">=</span> <span class="s">&quot;sample.sha256&quot;</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">hash</span><span class="p">)</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">res</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;No such hash found in AutoFocus&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">res</span>
+</div></div>
+<div class="viewcode-block" id="AFSample"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample">[docs]</a><span class="k">class</span> <span class="nc">AFSample</span><span class="p">(</span><span class="n">AutoFocusObject</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT</span>
+<span class="sd">    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:</span>
+<span class="sd">        AFSample.search</span>
+<span class="sd">        AFSample.get</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="n">known_attributes</span> <span class="o">=</span> <span class="p">(</span><span class="s">&quot;create_date&quot;</span><span class="p">,</span> <span class="s">&quot;filetype&quot;</span><span class="p">,</span> <span class="s">&quot;malware&quot;</span><span class="p">,</span> <span class="s">&quot;md5&quot;</span><span class="p">,</span> <span class="s">&quot;sha1&quot;</span><span class="p">,</span> <span class="s">&quot;sha256&quot;</span><span class="p">,</span> <span class="s">&quot;size&quot;</span><span class="p">,</span> <span class="s">&quot;multiscanner_hit&quot;</span><span class="p">,</span>\
+                            <span class="s">&quot;virustotal_hit&quot;</span><span class="p">,</span> <span class="s">&quot;source_label&quot;</span><span class="p">,</span> <span class="s">&quot;finish_date&quot;</span><span class="p">,</span> <span class="s">&quot;tag&quot;</span><span class="p">,</span> <span class="s">&quot;digital_signer&quot;</span><span class="p">,</span> <span class="s">&quot;update_date&quot;</span><span class="p">,</span>\
+                            <span class="s">&quot;ssdeep&quot;</span><span class="p">,</span> <span class="s">&quot;imphash&quot;</span><span class="p">)</span>
+
+        <span class="c"># TODO: remove this when the library matures, needless checking once we sort out attributes</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known_attributes</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;Unknown attribute for sample returned by REST service, please tell BSmall about this - </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+
+        <span class="c">#: str: md5 sum of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">md5</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;md5&#39;</span><span class="p">]</span>
+
+        <span class="c">#: str: sha256 sum of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sha256</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;sha256&#39;</span><span class="p">]</span>
+
+        <span class="c">#: Optional[str]: sha1 sum of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sha1</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;sha1&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: ssdeep sum of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ssdeep</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ssdeep&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: imphash sum of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imphash</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;imphash&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: str: The file type of the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_type</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;filetype&#39;</span><span class="p">]</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;finish_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;finish_date&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;finish_date&#39;</span><span class="p">]:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;finish_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;finish_date&#39;</span><span class="p">],</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">T%H:%M:%S&#39;</span><span class="p">)</span>
+
+        <span class="c">#: Optional[datetime]: The time the first sample analysis completed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">finish_date</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;finish_date&#39;</span><span class="p">]</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;update_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;update_date&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;update_date&#39;</span><span class="p">]:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;update_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;update_date&#39;</span><span class="p">],</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">T%H:%M:%S&#39;</span><span class="p">)</span>
+
+        <span class="c">#: Optional[datetime]: The time the last sample analysis completed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_date</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;update_date&#39;</span><span class="p">]</span>
+
+        <span class="c"># I don&#39;t think this should be optional, but playing it safe for now</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;create_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;create_date&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;create_date&#39;</span><span class="p">]:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;create_date&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;create_date&#39;</span><span class="p">],</span> <span class="s">&#39;%Y-%m-</span><span class="si">%d</span><span class="s">T%H:%M:%S&#39;</span><span class="p">)</span>
+
+        <span class="c">#: datetime: The time the sample was first seen by the system</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">create_date</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;create_date&#39;</span><span class="p">]</span>
+
+        <span class="c">#: bool: Whether WildFire thinks the sample is Malware or not</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware</span> <span class="o">=</span> <span class="bp">True</span> <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;malware&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="bp">False</span>
+
+        <span class="c">#: int: The size of the sample in bytes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;size&#39;</span><span class="p">]</span>
+
+        <span class="c">#: List[AFTag]: A list of tags</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tags</span> <span class="o">=</span> <span class="n">NotLoaded</span><span class="p">()</span>
+
+        <span class="c">#: Optiona[int]: TODO needs documentation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">multiscanner_hits</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;multiscanner_hit&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: Optiona[int]: how many sources regard the sample to be malicious in Virus Total</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">virustotal_hits</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;virustotal_hit&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: The source the sample came from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_label</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;source_label&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: The signer for the sample</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">digital_signer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;digital_signer&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+        <span class="c"># Private _tags</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tags</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;tag&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+        <span class="c"># Tags are offered as strings. Lazy load AFTag objects</span>
+        <span class="c"># When they are accessed</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s">&quot;tags&quot;</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">is</span> <span class="n">NotLoaded</span><span class="p">:</span>
+
+            <span class="n">value</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">for</span> <span class="n">tag_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tags</span><span class="p">:</span>
+
+                <span class="c"># TODO: Consider what might happen here if the tagname isn&#39;t in the DB</span>
+                <span class="n">value</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">AFTag</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tag_name</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">tags</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="AFSample.get_activity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample.get_activity">[docs]</a>    <span class="k">def</span> <span class="nf">get_activity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sections</span><span class="p">,</span> <span class="n">platforms</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes:</span>
+<span class="sd">            Points to AFSample.get_analyses. See documentation there for details</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_analyses</span><span class="p">(</span><span class="n">sections</span><span class="p">,</span> <span class="n">platforms</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="AFSample.get_analyses"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample.get_analyses">[docs]</a>    <span class="k">def</span> <span class="nf">get_analyses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sections</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">platforms</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;win7&quot;</span><span class="p">,</span> <span class="s">&quot;winxp&quot;</span><span class="p">,</span> <span class="s">&quot;staticAnalyzer&quot;</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            sections (Optional[array[str]]): The analysis sections desired. Defaults to all possible sections.</span>
+<span class="sd">            platforms (Optional[array[str]]): The analysis platforms desired. Defaults to all possible platforms.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            array[AutoFocusAnalysis]: A list of AutoFocusAnalysis sub-class instances representing the analysis</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AFClientError: In the case that the client did something unexpected</span>
+<span class="sd">            AFServerError: In the case that the client did something unexpected</span>
+<span class="sd">        Notes:</span>
+<span class="sd">            sections can also be a string or AutoFocusAnalysis subclass</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">mapped_sections</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sections</span><span class="p">:</span>
+            <span class="n">sections</span> <span class="o">=</span> <span class="n">ALL_ANALYSIS_SECTIONS</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">sections</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span> <span class="ow">or</span> <span class="nb">type</span><span class="p">(</span><span class="n">sections</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">sections</span> <span class="o">=</span> <span class="p">[</span><span class="n">sections</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">sections</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">section</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">:</span>
+                <span class="n">mapped_sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_class_analysis_map</span><span class="p">[</span><span class="n">section</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mapped_sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">section</span><span class="p">)</span>
+
+        <span class="n">resp_data</span> <span class="o">=</span> <span class="n">AutoFocusAPI</span><span class="o">.</span><span class="n">_api_request</span><span class="p">(</span><span class="s">&quot;/sample/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">sha256</span> <span class="o">+</span> <span class="s">&quot;/analysis&quot;</span><span class="p">,</span> \
+                    <span class="n">post_data</span> <span class="o">=</span> <span class="p">{</span> <span class="s">&quot;sections&quot;</span> <span class="p">:</span> <span class="n">mapped_sections</span><span class="p">,</span> <span class="s">&quot;platforms&quot;</span> <span class="p">:</span> <span class="n">platforms</span> <span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+        <span class="n">analyses</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">resp_data</span><span class="p">[</span><span class="s">&#39;sections&#39;</span><span class="p">]:</span>
+            <span class="n">af_analysis_class</span> <span class="o">=</span> <span class="n">_analysis_class_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">af_analysis_class</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">AFClientError</span><span class="p">(</span><span class="s">&quot;Was expecting a known section in analysis_class_map, got {} instead&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">section</span><span class="p">))</span>
+
+<span class="c">#            for platform in resp_data[&#39;platforms&#39;]: # staticAnlyzer is being returned by isn&#39;t in the set?</span>
+            <span class="k">for</span> <span class="n">platform</span> <span class="ow">in</span> <span class="n">resp_data</span><span class="p">[</span><span class="n">section</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">resp_data</span><span class="p">[</span><span class="n">section</span><span class="p">][</span><span class="n">platform</span><span class="p">]:</span>
+                    <span class="c"># TODO: remove try catch when all analyses types are normalized</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">analyses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">af_analysis_class</span><span class="o">.</span><span class="n">_parse_auto_focus_response</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">data</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="n">_InvalidAnalysisData</span><span class="p">:</span>
+                        <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">analyses</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSample.search"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample.search">[docs]</a>    <span class="k">def</span> <span class="nf">search</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notes:</span>
+<span class="sd">            Argument validation is done via the REST service. There is no client side validation of arguments. See the</span>
+<span class="sd">            following page for details on how searching works in the UI and how to craft a query for the API:</span>
+<span class="sd">            https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html</span>
+<span class="sd">        Args:</span>
+<span class="sd">            Search takes several different argument styles. See the examples to learn more.</span>
+
+<span class="sd">        Yields:</span>
+<span class="sd">            AFSample: sample objects as they are paged from the REST service</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AFClientError: In the case that the client did something unexpected</span>
+<span class="sd">            AFServerError: In the case that the client did something unexpected</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it&#39;s advised to</span>
+<span class="sd">            pass the raw string to .search</span>
+
+<span class="sd">            # Arguments in the form of kwargs</span>
+<span class="sd">            samples = []</span>
+<span class="sd">            for sample in AFSample.search(field = &quot;sample.malware&quot;, value = &quot;1&quot;, operator = &quot;is&quot;):</span>
+<span class="sd">                samples.append(sample.md5)</span>
+
+<span class="sd">            # Python dictionary with the query parameters</span>
+<span class="sd">            try:</span>
+<span class="sd">                sample = AFSample.search({&#39;field&#39;:&#39;sample.malware&#39;, &#39;value&#39;:1, &#39;operator&#39;:&#39;is&#39;}).next()</span>
+<span class="sd">            except StopIteration:</span>
+<span class="sd">                # No results found</span>
+<span class="sd">                pass</span>
+
+<span class="sd">            # Query strings from the AutoFocus web UI</span>
+<span class="sd">            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html</span>
+<span class="sd">            sample = AFSample.search(&quot;{&#39;field&#39;:&#39;sample.malware&#39;, &#39;value&#39;:1, &#39;operator&#39;:&#39;is&#39;}&quot;).next()</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">sample</span> <span class="ow">in</span> <span class="n">AFSampleFactory</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">sample</span>
+
+    <span class="c"># TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)</span></div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSample.search_hashes"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample.search_hashes">[docs]</a>    <span class="k">def</span> <span class="nf">search_hashes</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">hashes</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">NotImplemented</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="AFSample.get"><a class="viewcode-back" href="../autofocus.html#autofocus.AFSample.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="nb">hash</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            hash (str): either a md5, sha1, or sha256 hash of the sample needed</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            AFSample: Instance of AFSample that matches the hash offered</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AFClientError: In the case that the client did something unexpected</span>
+<span class="sd">            AFServerError: In the case that the client did something unexpected</span>
+<span class="sd">            KeyError: In the case that the argument offered is an invalid hash or that the hash</span>
+<span class="sd">                doesn&#39;t match a sample in AutoFocus</span>
+
+<span class="sd">        Examples:</span>
+<span class="sd">            try:</span>
+<span class="sd">                sample = AFSample.get(&quot;31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20&quot;)</span>
+<span class="sd">                sample = AFSample.get(&quot;97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919&quot;)</span>
+<span class="sd">                sample = AFSample.get(&quot;a1f19a3ebd9213d2f0d895ec86a53390&quot;)</span>
+<span class="sd">            except KeyError:</span>
+<span class="sd">                pass # Sample didn&#39;t exist</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">AFSampleFactory</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">hash</span><span class="p">)</span>
+</div></div>
+<div class="viewcode-block" id="AutoFocusAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AutoFocusAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AutoFocusAnalysis</span><span class="p">(</span><span class="n">AutoFocusObject</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_data</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">obj_data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">resp_data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">resp_data</span><span class="p">)</span>
+
+<span class="c">#apk_defined_activity</span></div>
+<div class="viewcode-block" id="AFApkActivityAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkActivityAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkActivityAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_defined_intent_filter</span></div>
+<div class="viewcode-block" id="AFApkIntentFilterAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkIntentFilterAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkIntentFilterAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_defined_receiver</span></div>
+<div class="viewcode-block" id="AFApkReceiverAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkReceiverAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkReceiverAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_defined_sensor</span></div>
+<div class="viewcode-block" id="AFApkSensorAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkSensorAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkSensorAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_defined_service</span></div>
+<div class="viewcode-block" id="AFApkServiceAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkServiceAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkServiceAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_embeded_url</span></div>
+<div class="viewcode-block" id="AFApkEmbededUrlAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkEmbededUrlAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkEmbededUrlAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_requested_permission</span></div>
+<div class="viewcode-block" id="AFApkRequestedPermissionAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkRequestedPermissionAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkRequestedPermissionAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_sensitive_api_call</span></div>
+<div class="viewcode-block" id="AFApkSensitiveApiCallAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkSensitiveApiCallAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkSensitiveApiCallAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_suspicious_api_call</span></div>
+<div class="viewcode-block" id="AFApkSuspiciousApiCallAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkSuspiciousApiCallAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkSuspiciousApiCallAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_suspicious_file</span></div>
+<div class="viewcode-block" id="AFApkSuspiciousFileAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkSuspiciousFileAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkSuspiciousFileAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#apk_suspicious_string</span></div>
+<div class="viewcode-block" id="AFApkSuspiciousStringAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApkSuspiciousStringAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFApkSuspiciousStringAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<span class="c">#behavior_type</span></div>
+<div class="viewcode-block" id="AFBehaviorTypeAnalysis"><a class="viewcode-back" href="../autofocus.html#autofocus.AFBehaviorTypeAnalysis">[docs]</a><span class="k">class</span> <span class="nc">AFBehaviorTypeAnalysis</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">behavior</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: str: A string representing a behavior the sample exhibits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">behavior</span> <span class="o">=</span> <span class="n">behavior</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">conn_data</span><span class="p">):</span>
+
+        <span class="n">ba</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">conn_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">])</span>
+        <span class="n">ba</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">conn_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ba</span>
+
+<span class="c">#connection</span></div>
+<div class="viewcode-block" id="AFConnectionActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFConnectionActivity">[docs]</a><span class="k">class</span> <span class="nc">AFConnectionActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">src_port</span><span class="p">,</span> <span class="n">dst_ip</span><span class="p">,</span> <span class="n">dst_port</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">country_code</span><span class="p">,</span> \
+                 <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional(str): The destination IP for the connection. Only valid for outbound connections</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dst_ip</span> <span class="o">=</span> <span class="n">dst_ip</span>
+
+        <span class="c">#: Optional(int): The destination port for the connection. Only valid for outbound connections</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dst_port</span> <span class="o">=</span> <span class="n">dst_port</span>
+
+        <span class="c">#: Optional(int): The source port for the connection. Only valid for listening connections</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">src_port</span> <span class="o">=</span> <span class="n">src_port</span>
+
+        <span class="c">#: str: The protocol of the connection</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">protocol</span> <span class="o">=</span> <span class="n">protocol</span>
+
+        <span class="c">#: Optional[str]: The name of the process that created the connection, when available</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: Optional[str]: The country code for the destionation IP, when available</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">country_code</span> <span class="o">=</span> <span class="n">country_code</span>
+
+        <span class="c">#: str: The action related to the connection (listen or connect)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="n">action</span>
+
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Normalizing connection analysis is a nightmare. There are multiple formats you can expect:</span>
+<span class="sd">     - &lt;protocol&gt;-connection , &lt;dst_ip&gt;:&lt;dst_port&gt; , &lt;unknown_field&gt; , &lt;country_code&gt;</span>
+<span class="sd">     - &lt;protocol&gt;-connection , &lt;dst_ip&gt;:&lt;dst_port&gt; , &lt;unknown_field&gt;</span>
+<span class="sd">     - bind , &lt;unknown integer&gt;</span>
+<span class="sd">     - connect , &lt;dst_ip&gt;:&lt;dst_port&gt; , &lt;unknown_field&gt; , &lt;country_code&gt;</span>
+<span class="sd">     - &lt;protocol&gt; , &lt;dst_ip&gt;:&lt;dst_port&gt; , &lt;country_code&gt;</span>
+<span class="sd">     - &lt;protocol&gt;-listening , &lt;src_port&gt;</span>
+<span class="sd">     - &lt;protocol&gt;-listening , &lt;ApiFunctionName&gt; , &lt;src_port&gt;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">conn_data</span><span class="p">):</span>
+
+        <span class="p">(</span><span class="n">dst_ip</span><span class="p">,</span> <span class="n">src_port</span><span class="p">,</span> <span class="n">dst_port</span><span class="p">,</span> <span class="n">uk2</span><span class="p">,</span> <span class="n">country_code</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="n">line_parts</span> <span class="o">=</span> <span class="n">conn_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line_parts</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line_parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">dst_ip_port</span><span class="p">,</span> <span class="n">uk2</span><span class="p">,</span> <span class="n">country_code</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">dst_ip_port</span><span class="p">,</span> <span class="n">country_code</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span>
+            <span class="p">(</span><span class="n">dst_ip</span><span class="p">,</span> <span class="n">dst_port</span><span class="p">)</span> <span class="o">=</span> <span class="n">dst_ip_port</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;:&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">line_parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">src_port</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">protocol</span> <span class="o">==</span> <span class="s">&quot;bind&quot;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">_InvalidAnalysisData</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">protocol</span> <span class="o">==</span> <span class="s">&quot;connect&quot;</span><span class="p">:</span>
+            <span class="n">protocol</span> <span class="o">=</span> <span class="s">&quot;tcp&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">if</span> <span class="n">country_code</span> <span class="o">==</span> <span class="s">&quot;&quot;</span> <span class="ow">or</span> <span class="n">country_code</span> <span class="o">==</span> <span class="s">&quot;N/A&quot;</span><span class="p">:</span>
+            <span class="n">country_code</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">conn_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">conn_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">conn_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">action</span> <span class="o">=</span> <span class="s">&quot;connect&quot;</span>
+        <span class="k">if</span> <span class="n">protocol</span> <span class="ow">and</span> <span class="s">&quot;-&quot;</span> <span class="ow">in</span> <span class="n">protocol</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">protocol</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;-&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s">&quot;connection&quot;</span><span class="p">:</span>
+                <span class="n">action</span> <span class="o">=</span> <span class="s">&quot;connect&quot;</span>
+            <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s">&quot;listening&quot;</span><span class="p">:</span>
+                <span class="n">action</span> <span class="o">=</span> <span class="s">&#39;listen&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c">#TODO remove this and throw an exception when we are confident about our normalization</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;Unknown connection action {} -- tell BSMALL</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">action</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">protocol</span><span class="p">:</span>
+            <span class="n">protocol</span> <span class="o">=</span> <span class="n">protocol</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="c">#TODO remove this and throw an exception when we are confident about our normalization</span>
+        <span class="k">if</span> <span class="n">protocol</span> <span class="ow">and</span> <span class="n">protocol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;tcp&#39;</span><span class="p">,</span> <span class="s">&#39;udp&#39;</span><span class="p">,</span> <span class="s">&#39;icmp&#39;</span><span class="p">,</span> <span class="s">&#39;gre&#39;</span><span class="p">):</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;Unknown protocol {} -- tell BSMALL</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">protocol</span><span class="p">))</span>
+
+        <span class="n">ca</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">src_port</span><span class="p">,</span> <span class="n">dst_ip</span><span class="p">,</span> <span class="n">dst_port</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">country_code</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> \
+                 <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ca</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">conn_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ca</span>
+
+<span class="c">#dns</span></div>
+<div class="viewcode-block" id="AFDnsActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFDnsActivity">[docs]</a><span class="k">class</span> <span class="nc">AFDnsActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: str: A string of the query preformed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query</span> <span class="o">=</span> <span class="n">query</span>
+
+        <span class="c">#: str: The response from the query performed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="n">response</span>
+
+        <span class="c">#: str: The type of request performed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="nb">type</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">dns_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span> <span class="n">dns_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">dns_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dns_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dns_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">da</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span><span class="n">query</span><span class="p">,</span> <span class="n">response</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">da</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">dns_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">da</span>
+
+<span class="c">#file</span></div>
+<div class="viewcode-block" id="AFFileActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFFileActivity">[docs]</a><span class="k">class</span> <span class="nc">AFFileActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">file_action</span><span class="p">,</span> <span class="n">file_name</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: The name of the process affecting the file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The attempted action taken on a file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_action</span> <span class="o">=</span> <span class="n">file_action</span>
+
+        <span class="c">#: str: The affected file&#39;s name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_name</span> <span class="o">=</span> <span class="n">file_name</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">file_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span> <span class="n">file_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">file_action</span><span class="p">,</span> <span class="n">file_name</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">file_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">file_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">file_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">fa</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">file_action</span><span class="p">,</span> <span class="n">file_name</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">fa</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">file_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">fa</span>
+
+<span class="c">#http</span></div>
+<div class="viewcode-block" id="AFHttpActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFHttpActivity">[docs]</a><span class="k">class</span> <span class="nc">AFHttpActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: str: The host the HTTP connection was made to</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">host</span> <span class="o">=</span> <span class="n">host</span>
+
+        <span class="c">#: str: The method used in the requesty</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">=</span> <span class="n">method</span>
+
+        <span class="c">#: str: The url of the request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+
+        <span class="c">#: str: The user agent of the request</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span> <span class="o">=</span> <span class="n">user_agent</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">http_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span> <span class="n">http_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">http_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">http_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">http_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">ha</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span><span class="n">host</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ha</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">http_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ha</span>
+
+<span class="c">#japi</span></div>
+<div class="viewcode-block" id="AFJavaApiActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFJavaApiActivity">[docs]</a><span class="k">class</span> <span class="nc">AFJavaApiActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">activity</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c"># TODO: Very generic. Needs more context</span>
+        <span class="c">#: str: A string representing java API activity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activity</span> <span class="o">=</span> <span class="n">activity</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">japi_data</span><span class="p">):</span>
+
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">japi_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">japi_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">japi_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="n">ja</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">japi_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">],</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ja</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">japi_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ja</span>
+
+<span class="c">#mutex</span></div>
+<div class="viewcode-block" id="AFMutexActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFMutexActivity">[docs]</a><span class="k">class</span> <span class="nc">AFMutexActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">mutex_name</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: The name of the process affecting the mutex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The function called to affect the mutex (At the time of this writing, have only seen CreateMutexW)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function_name</span> <span class="o">=</span> <span class="n">function_name</span>
+
+        <span class="c">#: str: THe name of the mutex affected</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mutex_name</span> <span class="o">=</span> <span class="n">mutex_name</span>
+
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">mutex_data</span><span class="p">):</span>
+
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">mutex_name</span><span class="p">)</span> <span class="o">=</span> <span class="n">mutex_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">mutex_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">mutex_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">mutex_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">ma</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">mutex_name</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ma</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">mutex_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ma</span>
+
+<span class="c">#misc</span></div>
+<div class="viewcode-block" id="AFApiActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFApiActivity">[docs]</a><span class="k">class</span> <span class="nc">AFApiActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">function_arguments</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional[str]: The name of the process affecting the mutex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The function called</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function_name</span> <span class="o">=</span> <span class="n">function_name</span>
+
+        <span class="c">#: array[str]: arguments passed to the function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function_arguments</span> <span class="o">=</span> <span class="n">function_arguments</span>
+
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">misc_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span>  <span class="n">misc_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">func_args</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">ma</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">function_name</span><span class="p">,</span> <span class="n">func_args</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ma</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">misc_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ma</span>
+
+<span class="c">#process</span></div>
+<div class="viewcode-block" id="AFProcessActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFProcessActivity">[docs]</a><span class="k">class</span> <span class="nc">AFProcessActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional(str): The name of the process affecting the process</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The function name called or the action affecting the parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="n">action</span>
+
+        <span class="c">#: array[str]: arguments passed to the function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span>
+
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">misc_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span>  <span class="n">misc_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">misc_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">ma</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ma</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">misc_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ma</span>
+
+<span class="c">#registry</span></div>
+<div class="viewcode-block" id="AFRegistryActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFRegistryActivity">[docs]</a><span class="k">class</span> <span class="nc">AFRegistryActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">registry_key</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional(str): The name of the process affecting the registry</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The function name called or the action affecting the parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="n">action</span>
+
+        <span class="c">#: str: The registry key being affected</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">registry_key</span> <span class="o">=</span> <span class="n">registry_key</span>
+
+        <span class="c">#: array[str]: arguments passed to the function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span>
+
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">registry_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span>  <span class="n">registry_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">registry_key</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">registry_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">registry_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">registry_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">ma</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">registry_key</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ma</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">registry_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ma</span>
+
+<span class="c">#service</span></div>
+<div class="viewcode-block" id="AFServiceActivity"><a class="viewcode-back" href="../autofocus.html#autofocus.AFServiceActivity">[docs]</a><span class="k">class</span> <span class="nc">AFServiceActivity</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign</span><span class="p">,</span> <span class="n">malware</span><span class="p">,</span> <span class="n">grayware</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: int: The number of samples regarded as benign related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benign_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">benign</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as malware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">malware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">malware</span><span class="p">)</span>
+
+        <span class="c">#: int: The number of samples regarded as grayware related to this analysis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grayware_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">grayware</span><span class="p">)</span>
+
+        <span class="c">#: Optional(str): The name of the process affecting the service</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process_name</span> <span class="o">=</span> <span class="n">process_name</span>
+
+        <span class="c">#: str: The function name called or the action affecting the parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="n">action</span>
+
+        <span class="c">#: array[str]: arguments passed to the function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span>
+
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">service_data</span><span class="p">):</span>
+
+        <span class="n">line_parts</span> <span class="o">=</span>  <span class="n">service_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; , &quot;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="n">line_parts</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+        <span class="p">(</span><span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">service_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;b&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">service_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;m&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">service_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;g&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">process_name</span> <span class="ow">or</span> <span class="n">process_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span> <span class="s">&quot;unknown&quot;</span><span class="p">):</span>
+            <span class="n">process_name</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">ma</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">process_name</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">benign_c</span><span class="p">,</span> <span class="n">malware_c</span><span class="p">,</span> <span class="n">grayware_c</span><span class="p">)</span>
+        <span class="n">ma</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">service_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ma</span>
+
+<span class="c">#user_agent</span></div>
+<div class="viewcode-block" id="AFUserAgentFragments"><a class="viewcode-back" href="../autofocus.html#autofocus.AFUserAgentFragments">[docs]</a><span class="k">class</span> <span class="nc">AFUserAgentFragments</span><span class="p">(</span><span class="n">AutoFocusAnalysis</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">fragment</span><span class="p">):</span>
+
+        <span class="c">#: str: The platform the sample analysis is from</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="c">#: str: A string representing a fragment of the user agent (stripping fluff, ie &quot;Mozilla/5.0&quot;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fragment</span> <span class="o">=</span> <span class="n">fragment</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_auto_focus_response</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">platform</span><span class="p">,</span> <span class="n">ua_data</span><span class="p">):</span>
+
+        <span class="n">ba</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="n">ua_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">])</span>
+        <span class="n">ba</span><span class="o">.</span><span class="n">_raw_line</span> <span class="o">=</span> <span class="n">ua_data</span><span class="p">[</span><span class="s">&#39;line&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">ba</span>
+</div>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_defined_activity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkActivityAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_defined_intent_filter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkIntentFilterAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_defined_receiver&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkReceiverAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_defined_sensor&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkSensorAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_defined_service&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkServiceAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_embeded_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkEmbededUrlAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_requested_permission&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkRequestedPermissionAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_sensitive_api_call&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkSensitiveApiCallAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_suspicious_api_call&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkSuspiciousApiCallAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_suspicious_file&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkSuspiciousFileAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;apk_suspicious_string&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApkSuspiciousStringAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;behavior_type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFBehaviorTypeAnalysis</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;connection&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFConnectionActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;dns&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFDnsActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;file&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFFileActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;http&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFHttpActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;japi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFJavaApiActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;mutex&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFMutexActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;misc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFApiActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;process&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFProcessActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;registry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFRegistryActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;service&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFServiceActivity</span>
+<span class="n">_analysis_class_map</span><span class="p">[</span><span class="s">&#39;user_agent&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AFUserAgentFragments</span>
+
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">v</span> <span class="ow">in</span> <span class="n">_analysis_class_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">_class_analysis_map</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+    <span class="n">v</span><span class="o">.</span><span class="n">autofocus_section</span> <span class="o">=</span> <span class="n">k</span>
+
+
+<span class="c"># Platforms</span>
+<span class="c"># win7, winxp, staticAnalyzer</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="n">sample</span> <span class="o">=</span> <span class="n">AFSample</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;8404e06ff383275462298e830bebe9540fab2092eca5523649d74e6e596ac23d&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">analysis</span> <span class="ow">in</span> <span class="n">sample</span><span class="o">.</span><span class="n">get_analyses</span><span class="p">(</span><span class="n">AFConnectionActivity</span><span class="p">):</span>
+        <span class="n">analysis</span>
+
+    <span class="c"># user agent fragments</span>
+<span class="c">#    sample = AFSample.get(&quot;66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses(AFUserAgentFragments):</span>
+<span class="c">#        print analysis</span>
+
+<span class="c">#    for analysis in sample.get_analyses(&#39;user_agent&#39;):</span>
+<span class="c">#        print analysis</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([AFUserAgentFragments]):</span>
+<span class="c">#        print analysis</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;user_agent&#39;]):</span>
+<span class="c">#        print analysis</span>
+
+<span class="c">#    # service activity</span>
+<span class="c">#    sample = AFSample.get(&quot;652c70c144f0d2d177695c5dc47ed9fcc1606ebdf78a636cace91988f12185fa&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;service&#39;]):</span>
+<span class="c">#        print analysis</span>
+
+<span class="c">#    # process activity</span>
+<span class="c">#    sample = AFSample.get(&quot;09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;registry&#39;]):</span>
+<span class="c">#        print analysis</span>
+
+<span class="c">#    # process activity</span>
+<span class="c">#    sample = AFSample.get(&quot;09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;process&#39;]):</span>
+<span class="c">#        print analysis</span>
+<span class="c">#</span>
+<span class="c">#    # Miscellaneous</span>
+<span class="c">#    sample = AFSample.get(&quot;09dd98c93cde02935f885a72a9789973e1e17b8a1d2b8e3bd34d5fc27db46fde&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;misc&#39;]):</span>
+<span class="c">#        print analysis</span>
+
+<span class="c">#    # Mutex Analysis</span>
+<span class="c">#    for sample in AFSample.search(field = &quot;sample.tasks.mutex&quot;, operator = &quot;has any value&quot;, value = &quot;&quot;):</span>
+<span class="c">#        for analysis in sample.get_analyses([&#39;mutex&#39;]):</span>
+<span class="c">#            print analysis.action</span>
+
+<span class="c">#    # Java API  Analysis</span>
+<span class="c">#    sample = AFSample.get(&quot;2b69dcee474f802bab494983d1329d2dc3f7d7bb4c9f16836efc794284276c8e&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;japi&#39;]):</span>
+<span class="c">#        print type(analysis)</span>
+
+<span class="c">#    # HTTP Analysis</span>
+<span class="c">#    sample = AFSample.get(&quot;c1dc94d92c0ea361636d2f08b63059848ec1fb971678bfc34bcb4a960a120f7e&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;http&#39;]):</span>
+<span class="c">#        print type(analysis)</span>
+
+<span class="c">#    # DNS Analysis</span>
+<span class="c">#    sample = AFSample.get(&quot;21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae85ac6500&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;dns&#39;]):</span>
+<span class="c">#        print type(analysis)</span>
+
+    <span class="c"># Behavior analysis</span>
+<span class="c">#    sample = AFSample.get(&quot;438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9&quot;)</span>
+<span class="c">#</span>
+<span class="c">#    for analysis in sample.get_analyses([&#39;behavior_type&#39;]):</span>
+<span class="c">#        print type(analysis)</span>
+
+
+    <span class="c"># Connection testing hashes</span>
+
+<span class="c">#    test_hashes = (</span>
+<span class="c">#        &quot;7a1f5a5fe0a3bd5031da504d67e224f35b96fd1fd9771f67bc0936999d4d292b&quot;, # Has udp</span>
+<span class="c">#        &quot;90c6cef834a7528e6771959c2e093c230866167eb8d1f16362a5128c0c35694f&quot;, # Has tcp-connection, udp-connection</span>
+<span class="c">#        &quot;0bb615a781035e4d0143582ea5a0a4c9486625585de1cd8e3a8669cd2a1b29f3&quot;  # Has tcp-listen</span>
+<span class="c">#    )</span>
+<span class="c">#</span>
+<span class="c">#    # Get a sample by hash</span>
+<span class="c">#    for sample_hash in test_hashes:</span>
+<span class="c">#</span>
+<span class="c">#        sample = AFSample.get(sample_hash)</span>
+<span class="c">#</span>
+<span class="c">#        for analysis in sample.get_analyses([&#39;connection&#39;]):</span>
+<span class="c">#            print type(analysis)</span>
+<span class="c">#</span>
+<span class="c">##        for tag in sample.tags:</span>
+<span class="c">##            print tag.public_name</span>
+<span class="c">#</span>
+<span class="c">#    for sample in AFSample.search(&#39;{&quot;operator&quot;:&quot;all&quot;,&quot;children&quot;:[{&quot;field&quot;:&quot;sample.tasks.connection&quot;,&quot;operator&quot;:&quot;contains&quot;,&quot;value&quot;:&quot;tcp&quot;},{&quot;field&quot;:&quot;sample.tag_scope&quot;,&quot;operator&quot;:&quot;is&quot;,&quot;value&quot;:&quot;unit42&quot;}]}&#39;):</span>
+<span class="c">#</span>
+<span class="c">#        for analysis in sample.get_analyses([&#39;connection&#39;]):</span>
+<span class="c">#</span>
+<span class="c">#            print type(analysis)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Ben Small.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
