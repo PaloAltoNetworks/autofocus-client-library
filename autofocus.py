@@ -1319,24 +1319,7 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    # aggregate testing
-    post_data = {
-        "query": {
-            "operator": "all",
-            "field" : "sha256",
-            "size" : "100",
-            "children": [
-                {
-                "field": "sample.malware",
-                "operator": "is",
-                "value": "1"
-                },
-            ]
-        }
-    }
-    for row in AFSampleFactory._api_request("/sessions/aggregate/search/global", post_data):
-        print row
-
+    pass
 #    # user agent fragments
 #    sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
 #
