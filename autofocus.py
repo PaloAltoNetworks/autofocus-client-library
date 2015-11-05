@@ -69,6 +69,12 @@ class AFServerError(Exception):
         #: requests.Response: response from the server
         self.response = response
 
+class _InvalidAnalysisData(Exception):
+    """
+    Private class meant to be used for skipping bad analysis data rows
+    """
+    pass
+
 class AutoFocusObject(object):
     pass
 
@@ -664,8 +670,8 @@ class AFSample(AutoFocusObject):
                 for data in resp_data[section][platform]:
                     # TODO: remove try catch when all analyses types are normalized
                     try:
-                        analyses.append(af_analysis_class.parse_auto_focus_response(platform, data))
-                    except NotImplementedError:
+                        analyses.append(af_analysis_class._parse_auto_focus_response(platform, data))
+                    except _InvalidAnalysisData:
                         pass
 
         return analyses
@@ -747,7 +753,7 @@ class AutoFocusAnalysis(AutoFocusObject):
             setattr(self, k, v)
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, resp_data):
+    def _parse_auto_focus_response(cls, platform, resp_data):
         return cls(resp_data)
 
 #apk_defined_activity
@@ -806,7 +812,7 @@ class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
         self.behavior = behavior
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, conn_data):
+    def _parse_auto_focus_response(cls, platform, conn_data):
 
         ba = cls(platform, conn_data['line'])
         ba._raw_line = conn_data['line']
@@ -852,8 +858,19 @@ class AFConnectionActivity(AutoFocusAnalysis):
         #: str: The action related to the connection (listen or connect)
         self.action = action
 
+
+    """
+    Normalizing connection analysis is a nightmare. There are multiple formats you can expect:
+     - <protocol>-connection , <dst_ip>:<dst_port> , <unknown_field> , <country_code>
+     - <protocol>-connection , <dst_ip>:<dst_port> , <unknown_field>
+     - bind , <unknown integer>
+     - connect , <dst_ip>:<dst_port> , <unknown_field> , <country_code>
+     - <protocol> , <dst_ip>:<dst_port> , <country_code>
+     - <protocol>-listening , <src_port>
+     - <protocol>-listening , <ApiFunctionName> , <src_port>
+    """
     @classmethod
-    def parse_auto_focus_response(cls, platform, conn_data):
+    def _parse_auto_focus_response(cls, platform, conn_data):
 
         (dst_ip, src_port, dst_port, uk2, country_code) = (None, None, None, None, None)
         line_parts = conn_data['line'].split(" , ")
@@ -867,6 +884,12 @@ class AFConnectionActivity(AutoFocusAnalysis):
         elif len(line_parts) == 3:
             (process_name, protocol, src_port) = line_parts[0:3]
 
+            if protocol == "bind":
+                raise _InvalidAnalysisData()
+
+        if protocol == "connect":
+            protocol = "tcp"
+
         if not process_name or process_name.lower() in (" ", "unknown"):
             process_name = None
 
@@ -875,10 +898,8 @@ class AFConnectionActivity(AutoFocusAnalysis):
 
         (benign_c, malware_c, grayware_c) = (conn_data.get('b', 0), conn_data.get('m', 0), conn_data.get('g', 0))
 
-        protocol = protocol.lower()
-
         action = "connect"
-        if "-" in protocol:
+        if protocol and "-" in protocol:
             (protocol, action) = protocol.split("-")
 
             if action == "connection":
@@ -887,11 +908,14 @@ class AFConnectionActivity(AutoFocusAnalysis):
                 action = 'listen'
             else:
                 #TODO remove this and throw an exception when we are confident about our normalization
-                sys.stderr.write("Unknown connection action {} -- tell BSMALL".format(action))
+                sys.stderr.write("Unknown connection action {} -- tell BSMALL\n".format(action))
+
+        if protocol:
+            protocol = protocol.lower()
 
         #TODO remove this and throw an exception when we are confident about our normalization
-        if protocol not in ('tcp', 'udp', 'icmp', 'gre'):
-            sys.stderr.write("Unknown protocol {} -- tell BSMALL".format(protocol))
+        if protocol and protocol not in ('tcp', 'udp', 'icmp', 'gre'):
+            sys.stderr.write("Unknown protocol {} -- tell BSMALL\n".format(protocol))
 
         ca = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c, \
                  malware_c, grayware_c)
@@ -926,7 +950,7 @@ class AFDnsActivity(AutoFocusAnalysis):
         self.type = type
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, dns_data):
+    def _parse_auto_focus_response(cls, platform, dns_data):
 
         line_parts = dns_data['line'].split(" , ")
         (query, response, type) = line_parts[0:3]
@@ -963,7 +987,7 @@ class AFFileActivity(AutoFocusAnalysis):
         self.file_name = file_name
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, file_data):
+    def _parse_auto_focus_response(cls, platform, file_data):
 
         line_parts = file_data['line'].split(" , ")
         (process_name, file_action, file_name) = line_parts[0:3]
@@ -1007,7 +1031,7 @@ class AFHttpActivity(AutoFocusAnalysis):
         self.user_agent = user_agent
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, http_data):
+    def _parse_auto_focus_response(cls, platform, http_data):
 
         line_parts = http_data['line'].split(" , ", 3)
         (host, method, url, user_agent) = line_parts[0:4]
@@ -1040,7 +1064,7 @@ class AFJavaApiActivity(AutoFocusAnalysis):
         self.activity = activity
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, japi_data):
+    def _parse_auto_focus_response(cls, platform, japi_data):
 
         (benign_c, malware_c, grayware_c) = (japi_data.get('b', 0), japi_data.get('m', 0), japi_data.get('g', 0))
 
@@ -1077,7 +1101,7 @@ class AFMutexActivity(AutoFocusAnalysis):
 
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, mutex_data):
+    def _parse_auto_focus_response(cls, platform, mutex_data):
 
         (process_name, function_name, mutex_name) = mutex_data['line'].split(" , ")
         (benign_c, malware_c, grayware_c) = (mutex_data.get('b', 0), mutex_data.get('m', 0), mutex_data.get('g', 0))
@@ -1118,7 +1142,7 @@ class AFApiActivity(AutoFocusAnalysis):
 
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, misc_data):
+    def _parse_auto_focus_response(cls, platform, misc_data):
 
         line_parts =  misc_data['line'].split(" , ")
         (process_name, function_name) = line_parts[0:2]
@@ -1161,7 +1185,7 @@ class AFProcessActivity(AutoFocusAnalysis):
 
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, misc_data):
+    def _parse_auto_focus_response(cls, platform, misc_data):
 
         line_parts =  misc_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
@@ -1207,7 +1231,7 @@ class AFRegistryActivity(AutoFocusAnalysis):
 
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, registry_data):
+    def _parse_auto_focus_response(cls, platform, registry_data):
 
         line_parts =  registry_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
@@ -1251,7 +1275,7 @@ class AFServiceActivity(AutoFocusAnalysis):
 
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, service_data):
+    def _parse_auto_focus_response(cls, platform, service_data):
 
         line_parts =  service_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
@@ -1278,7 +1302,7 @@ class AFUserAgentFragments(AutoFocusAnalysis):
         self.fragment = fragment
 
     @classmethod
-    def parse_auto_focus_response(cls, platform, ua_data):
+    def _parse_auto_focus_response(cls, platform, ua_data):
 
         ba = cls(platform, ua_data['line'])
         ba._raw_line = ua_data['line']
@@ -1319,13 +1343,17 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    pass
-#    # user agent fragments
+    sample = AFSample.get("8404e06ff383275462298e830bebe9540fab2092eca5523649d74e6e596ac23d")
+
+    for analysis in sample.get_analyses(AFConnectionActivity):
+        analysis
+
+    # user agent fragments
 #    sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
 #
 #    for analysis in sample.get_analyses(AFUserAgentFragments):
 #        print analysis
-#
+
 #    for analysis in sample.get_analyses('user_agent'):
 #        print analysis
 #
