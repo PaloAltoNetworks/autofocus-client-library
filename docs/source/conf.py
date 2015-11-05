@@ -31,7 +31,6 @@ import shlex
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
     'sphinxcontrib.napoleon'
 ]
 
