@@ -28,7 +28,7 @@ ALL_ANALYSIS_SECTIONS = (
 #   values. So you can offer invalid IPs, such as 592.99.1.1 and it will
 #   not balk. The result set will be empty, naturally.
 
-_base_url = "https://autofocus.paloaltonetworks.com/api/v0.9"
+_base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 _headers = {"Content-Type" : "application/json"}
 
 class NotLoaded(object):
@@ -125,7 +125,7 @@ class AutoFocusAPI(object):
                 "order": "desc"
             }
         }
-        post_data['scope'] = "Global"
+        post_data['scope'] = "global"
 
         while True:
 
@@ -237,10 +237,11 @@ class AFTagReference(AutoFocusObject):
 
 class AFTag(AutoFocusObject):
     """
-    The AFTag should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
-    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFTag. See:
-        AFTag.list
-        AFTag.get
+    Notes:
+        The AFTag should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+        be instantiated directly. Instead, call the various class method factories to get instance(s) of AFTag. See:
+        * autofocus.AFTag.list
+        * autofocus.AFTag.get
     """
 
     def __init__(self, **kwargs):
@@ -414,7 +415,7 @@ class AFTagFactory(AutoFocusAPI):
         Notes: See AFTag.list for documentation
         """
 
-        kwargs['scope'] = kwargs.get("scope", "Visible")
+        kwargs['scope'] = kwargs.get("scope", "visible").lower()
         kwargs['sortBy'] = kwargs.get("sortBy", "name")
         kwargs['order'] = kwargs.get("order", "asc")
         kwargs['pageSize'] = 200
@@ -422,7 +423,7 @@ class AFTagFactory(AutoFocusAPI):
 
         results = []
 
-        resp_data = cls._api_request("/tags/", params = kwargs).json()
+        resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
         for tag_data in resp_data['tags']:
             results.append(AFTag(**tag_data))
@@ -436,7 +437,7 @@ class AFTagFactory(AutoFocusAPI):
 
             kwargs['pageNum'] += 1
 
-            resp_data = cls._api_request("/tags/", params = kwargs).json()
+            resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
                 results.append(AFTag(**tag_data))
@@ -515,14 +516,15 @@ class AFSampleFactory(AutoFocusAPI):
         return res
 
 class AFSample(AutoFocusObject):
-    """
-    The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
-    be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
-        AFSample.search
-        AFSample.get
-    """
 
     def __init__(self, **kwargs):
+        """
+        Notes:
+            The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+            be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
+            * autofocus.AFSample.search
+            * autofocus.AFSample.get
+        """
 
         known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
                             "virustotal_hit", "source_label", "finish_date", "tag", "digital_signer", "update_date",\
@@ -617,6 +619,76 @@ class AFSample(AutoFocusObject):
 
         return value
 
+    @classmethod
+    def search(cls, *args, **kwargs):
+        """
+        Notes:
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            following page for details on how searching works in the UI and how to craft a query for the API:
+            https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+        Args:
+            Search takes several different argument styles. See the examples to learn more.
+
+        Yields:
+            AFSample: sample objects as they are paged from the REST service
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Example:
+            For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it's advised to
+            pass the raw string to .search ::
+
+            # Arguments in the form of kwargs
+            samples = []
+            for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
+                samples.append(sample.md5)
+
+            # Python dictionary with the query parameters
+            try:
+                sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
+            except StopIteration:
+                # No results found
+                pass
+
+            # Query strings from the AutoFocus web UI
+            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+            sample = AFSample.search("{'field':'sample.malware', 'value':1, 'operator':'is'}").next()
+        """
+        for sample in AFSampleFactory.search(*args, **kwargs):
+            yield sample
+
+    # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
+    @classmethod
+    def _search_hashes(cls, hashes):
+        raise NotImplemented
+
+    @classmethod
+    def get(cls, hash):
+        """
+        Args:
+            hash (str): either a md5, sha1, or sha256 hash of the sample needed
+
+        Returns:
+            AFSample: Instance of AFSample that matches the hash offered
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+            KeyError: In the case that the argument offered is an invalid hash or that the hash
+                doesn't match a sample in AutoFocus
+
+        Examples:
+            try:
+                sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+                sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
+                sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
+            except KeyError:
+                pass # Sample didn't exist
+        """
+        return AFSampleFactory.get(hash)
+
     def get_activity(self, sections, platforms):
         """
         Notes:
@@ -655,7 +727,7 @@ class AFSample(AutoFocusObject):
                 mapped_sections.append(section)
 
         resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", \
-                    post_data = { "sections" : mapped_sections, "platforms" : platforms }).json()
+                                              post_data = { "sections" : mapped_sections, "platforms" : platforms }).json()
 
         analyses = []
 
@@ -665,7 +737,7 @@ class AFSample(AutoFocusObject):
             if not af_analysis_class:
                 raise AFClientError("Was expecting a known section in analysis_class_map, got {} instead".format(section))
 
-#            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
+            #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
             for platform in resp_data[section].keys():
                 for data in resp_data[section][platform]:
                     # TODO: remove try catch when all analyses types are normalized
@@ -675,76 +747,6 @@ class AFSample(AutoFocusObject):
                         pass
 
         return analyses
-
-    @classmethod
-    def search(cls, *args, **kwargs):
-        """
-        Notes:
-            Argument validation is done via the REST service. There is no client side validation of arguments. See the
-            following page for details on how searching works in the UI and how to craft a query for the API:
-            https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
-        Args:
-            Search takes several different argument styles. See the examples to learn more.
-
-        Yields:
-            AFSample: sample objects as they are paged from the REST service
-
-        Raises:
-            AFClientError: In the case that the client did something unexpected
-            AFServerError: In the case that the client did something unexpected
-
-        Examples:
-            For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it's advised to
-            pass the raw string to .search
-
-            # Arguments in the form of kwargs
-            samples = []
-            for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
-                samples.append(sample.md5)
-
-            # Python dictionary with the query parameters
-            try:
-                sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
-            except StopIteration:
-                # No results found
-                pass
-
-            # Query strings from the AutoFocus web UI
-            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
-            sample = AFSample.search("{'field':'sample.malware', 'value':1, 'operator':'is'}").next()
-        """
-        for sample in AFSampleFactory.search(*args, **kwargs):
-            yield sample
-
-    # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
-    @classmethod
-    def search_hashes(cls, hashes):
-        raise NotImplemented
-
-    @classmethod
-    def get(cls, hash):
-        """
-        Args:
-            hash (str): either a md5, sha1, or sha256 hash of the sample needed
-
-        Returns:
-            AFSample: Instance of AFSample that matches the hash offered
-
-        Raises:
-            AFClientError: In the case that the client did something unexpected
-            AFServerError: In the case that the client did something unexpected
-            KeyError: In the case that the argument offered is an invalid hash or that the hash
-                doesn't match a sample in AutoFocus
-
-        Examples:
-            try:
-                sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
-                sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
-                sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
-            except KeyError:
-                pass # Sample didn't exist
-        """
-        return AFSampleFactory.get(hash)
 
 class AutoFocusAnalysis(AutoFocusObject):
 
