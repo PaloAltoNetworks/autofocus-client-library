@@ -69,6 +69,9 @@ class AFServerError(Exception):
         #: requests.Response: response from the server
         self.response = response
 
+class AFSampleHashMissing(KeyError):
+    pass
+
 class _InvalidAnalysisData(Exception):
     """
     Private class meant to be used for skipping bad analysis data rows
@@ -85,7 +88,6 @@ class AutoFocusAPI(object):
     """
 
     page_size = 2000
-    search_operator = "all"
 
     def __init__(self, **kwargs):
         for k,v in kwargs.items():
@@ -116,7 +118,7 @@ class AutoFocusAPI(object):
         return resp
 
     @classmethod
-    def _api_search_request(cls, path, post_data):
+    def _api_search_request(cls, path,  post_data):
 
         post_data["size"]   = cls.page_size
         post_data["from"]   = 0
@@ -182,50 +184,19 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _api_search(cls, *args, **kwargs):
+    def _api_search(cls, path, query, scope = "global"):
 
-        # TODO: Needs alot of documentation to make this more clear for readers
+        post_data = { "scope" : scope }
 
-        args = list(args)
-
-        # Classes that inherit from AutoFocusAPI need to pass a search path as the 
-        # first arg to the protected _api_search method
-        path = args.pop(0)
-
-        if len(args) == 1 and type(args[0]) is str:
-            post_data = {
-                "query" : json.loads(args[0])
-            }
+        if type(query) is str:
+            post_data['query'] = json.loads(query)
+        elif type(query) is dict:
+            if 'field' in query:
+                post_data['query'] = { "operator" : "all", "children" : [query]}
+            else:
+                post_data['query'] = query
         else:
-
-            if len(args) == 1 and not kwargs:
-                kwargs = args[0]
-
-            # Just do an or here, we'll do validation below
-            if "field" in kwargs or "value" in kwargs:
-                args.append(kwargs)
-
-            post_data = {
-                "query": {
-                    "operator": cls.search_operator,
-                    "children": []
-                }
-            }
-
-            for kwarg in args:        
-     
-                # Check and make sure field and value are passed to search - req'd
-                for arg in ('field', 'value'):
-                    if arg not in kwarg:
-                        raise Exception
-
-                # Build the searching paramaters to be passed to the _api_request method
-                # _api_request will add the additional data needed to form a valid request
-                post_data['query']['children'].append({
-                    "field": kwarg['field'],
-                    "operator": kwarg.get('operator', "is"),
-                    "value": kwarg['value']
-                })
+            raise ValueError("Query must be a valid AutoFocus string or dictionary")
 
         for res in cls._api_search_request(path, post_data = post_data):
             for hit in res['hits']:
@@ -470,9 +441,9 @@ class AFTagFactory(AutoFocusAPI):
 class AFSession(AutoFocusAPI):
 
     @classmethod
-    def search(cls, *args, **kwargs):
+    def search(cls, query, scope = "global"):
 
-        for res in cls._api_search("/sessions/search", *args, **kwargs):
+        for res in cls._api_search("/sessions/search", query, scope):
             yield AFSession(**res['_source'])
 
 class AFSampleFactory(AutoFocusAPI):
@@ -481,12 +452,12 @@ class AFSampleFactory(AutoFocusAPI):
     """
 
     @classmethod
-    def search(cls, *args, **kwargs):
+    def search(cls, query, scope = "global"):
         """
         Notes: See AFSample.search documentation
         """
 
-        for res in cls._api_search("/samples/search", *args, **kwargs):
+        for res in cls._api_search("/samples/search", query, scope):
             yield AFSample(**res['_source'])
 
     @classmethod
@@ -500,13 +471,18 @@ class AFSampleFactory(AutoFocusAPI):
 
         res = None
 
+        query = { "operator" : "is", "value" : hash }
+
         try:
             if len(hash) == 32:
-                res = cls.search(field = "sample.md5", value = hash).next()
+                query['field'] = "sample.md5"
             elif len(hash) == 40:
-                res = cls.search(field = "sample.sha1", value = hash).next()
+                query['field'] = "sample.sha1"
             elif len(hash) == 64:
-                res = cls.search(field = "sample.sha256", value = hash).next()
+                query['field'] = "sample.sha256"
+
+            res = cls.search(query).next()
+
         except StopIteration:
             pass
 
@@ -620,14 +596,15 @@ class AFSample(AutoFocusObject):
         return value
 
     @classmethod
-    def search(cls, *args, **kwargs):
+    def search(cls, query, scope = "global"):
         """
         Notes:
             Argument validation is done via the REST service. There is no client side validation of arguments. See the
             following page for details on how searching works in the UI and how to craft a query for the API:
             https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
         Args:
-            Search takes several different argument styles. See the examples to learn more.
+            query str:The query to run against autofocus (will also take dicts per examples)
+            scope Optional[str]:The scope of the search you're running. Defaults to "global"
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -637,26 +614,28 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         Example:
-            For simple queries, keyword arguments is acceptable, for more complex or lengthy queries, it's advised to
-            pass the raw string to .search ::
 
-            # Arguments in the form of kwargs
-            samples = []
-            for sample in AFSample.search(field = "sample.malware", value = "1", operator = "is"):
-                samples.append(sample.md5)
+            # Query strings from the AutoFocus web UI
+            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+            try:
+                for sample in AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}):
+                    pass # Do something with the sample
+            except AFServerError:
+                pass # Something happened to the server
+            except AFClientError:
+                pass # The client did something stupid, likely a bad query was passed
 
             # Python dictionary with the query parameters
             try:
                 sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
             except StopIteration:
-                # No results found
-                pass
-
-            # Query strings from the AutoFocus web UI
-            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
-            sample = AFSample.search("{'field':'sample.malware', 'value':1, 'operator':'is'}").next()
+                pass # No results found
+            except AFServerError:
+                pass # Something happened to the server
+            except AFClientError:
+                pass # The client did something stupid, likely a bad query was passed
         """
-        for sample in AFSampleFactory.search(*args, **kwargs):
+        for sample in AFSampleFactory.search(query, scope):
             yield sample
 
     # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
