@@ -1,4 +1,4 @@
-from autofocus import AFSample
+from autofocus import AFSample, AFSampleHashMissing
 
 #AutoFocusAPI.api_key = "<my API key>"
 
@@ -6,11 +6,14 @@ from autofocus import AFSample
 # Searching for a single hash #
 ###############################
 hash = "7f38fd3e55a4139d788a4475ab0a5d83bf7686a37ef5e54a65364a0d781b523c"
-sample = AFSample.get(hash)
+try:
+    sample = AFSample.get(hash)
 
-print "Pulled sample {} and got the follow attributes".format(hash)
-for k,v in sample.__dict__.items():
-    print "\t{}={}".format(k, v)
+    print "Pulled sample {} and got the follow attributes".format(hash)
+    for k,v in sample.__dict__.items():
+        print "\t{}={}".format(k, v)
+except AFSampleHashMissing:
+    pass # The sample isn't in AutoFocus
 
 
 ################################################
