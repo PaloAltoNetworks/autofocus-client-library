@@ -4,12 +4,15 @@ from pprint import pprint
 from datetime import datetime
 import autofocus_config
 
-AF_APIKEY = autofocus_config.AF_APIKEY
+# Useful information:
+#
+# * We're not doing any input validation in the client itself. We pass
+#   the data to the API, and rely on 4XX errors to communicate invalid
+#   requests. At the time this was written, the API DOES NOT validate search
+#   values. So you can offer invalid IPs, such as 592.99.1.1 and it will
+#   not balk. The result set will be empty, naturally.
 
-# A dictionaries for mapping AutoFocus Analysis Response objects
-# to their corresponding normalization classes and vice-versa
-_analysis_class_map = {}
-_class_analysis_map = {}
+AF_APIKEY = autofocus_config.AF_APIKEY
 
 ALL_ANALYSIS_SECTIONS = (
     'apk_defined_activity', 'apk_defined_intent_filter', 'apk_defined_receiver',
@@ -20,13 +23,10 @@ ALL_ANALYSIS_SECTIONS = (
     'user_agent'
 )
 
-# Useful information:
-#
-# * We're not doing any input validation in the client itself. We pass
-#   the data to the API, and rely on 4XX errors to communicate invalid
-#   requests. At the time this was written, the API DOES NOT validate search
-#   values. So you can offer invalid IPs, such as 592.99.1.1 and it will
-#   not balk. The result set will be empty, naturally.
+# A dictionaries for mapping AutoFocus Analysis Response objects
+# to their corresponding normalization classes and vice-versa
+_analysis_class_map = {}
+_class_analysis_map = {}
 
 _base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 _headers = {"Content-Type" : "application/json"}
