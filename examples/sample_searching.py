@@ -2,6 +2,33 @@ from autofocus import AFSample
 
 #AutoFocusAPI.api_key = "<my API key>"
 
+###############################
+# Searching for a single hash #
+###############################
+hash = "7f38fd3e55a4139d788a4475ab0a5d83bf7686a37ef5e54a65364a0d781b523c"
+sample = AFSample.get(hash)
+
+print "Pulled sample {} and got the follow attributes".format(hash)
+for k,v in sample.__dict__.items():
+    print "\t{}={}".format(k, v)
+
+
+################################################
+# Run an autofocus query (Exported via the UI) #
+################################################
+query = '{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
+
+# * AFSample.search is a generator, so you have to iterate over the results, which is required since it's common
+#   to search for large datasets
+# * The client library handles all paging for you, so you just need to pose a question
+#   and parse the results
+for sample in AFSample.search(query):
+    pass
+
+#################################
+# Searching for multiple hashes #
+#################################
+
 # Get a list of hashes you're interested in looking for
 # IMPORTANT: The API currently has a 100 hash limit per query. You'll have to chunk hashes
 # if you want to run more than 100 hashes.
