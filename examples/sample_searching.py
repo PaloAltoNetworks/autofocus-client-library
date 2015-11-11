@@ -1,4 +1,4 @@
-from autofocus import AFSample, AFSampleHashMissing
+from autofocus import AFSample, AFSampleAbsent
 
 #AutoFocusAPI.api_key = "<my API key>"
 
@@ -12,7 +12,7 @@ try:
     print "Pulled sample {} and got the follow attributes".format(hash)
     for k,v in sample.__dict__.items():
         print "\t{}={}".format(k, v)
-except AFSampleHashMissing:
+except AFSampleAbsent:
     pass # The sample isn't in AutoFocus
 
 

@@ -11,7 +11,7 @@ __all__ = [
     'AFApkSuspiciousFileAnalysis','AFApkSuspiciousStringAnalysis', 'AFBehaviorTypeAnalysis','AFClientError'
     'AFConnectionActivity','AFDnsActivity','AFFileActivity','AFHttpActivity'
     'AFJavaApiActivity','AFMutexActivity','AFProcessActivity','AFRegistryActivity'
-    'AFSample','AFSampleFactory','AFSampleHashMissing','AFServerError'
+    'AFSample','AFSampleFactory','AFSampleAbsent','AFServerError'
     'AFServiceActivity','AFSession','AFTag','AFTagCache'
     'AFTagFactory','AFTagReference','AFUserAgentFragments','AutoFocusAnalysis'
     'AutoFocusAPI','AutoFocusObject'
@@ -82,7 +82,7 @@ class AFServerError(Exception):
         #: requests.Response: response from the server
         self.response = response
 
-class AFSampleHashMissing(KeyError):
+class AFSampleAbsent(KeyError):
     pass
 
 class _InvalidAnalysisData(Exception):
