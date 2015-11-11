@@ -4,6 +4,19 @@ from pprint import pprint
 from datetime import datetime
 import autofocus_config
 
+__all__ = [
+    'AFApiActivity','AFApkActivityAnalysis','AFApkEmbededUrlAnalysis','AFApkIntentFilterAnalysis'
+    'AFApkReceiverAnalysis','AFApkRequestedPermissionAnalysis','AFApkSensitiveApiCallAnalysis',
+    'AFApkSensorAnalysis','AFApkServiceAnalysis','AFApkSuspiciousApiCallAnalysis'
+    'AFApkSuspiciousFileAnalysis','AFApkSuspiciousStringAnalysis', 'AFBehaviorTypeAnalysis','AFClientError'
+    'AFConnectionActivity','AFDnsActivity','AFFileActivity','AFHttpActivity'
+    'AFJavaApiActivity','AFMutexActivity','AFProcessActivity','AFRegistryActivity'
+    'AFSample','AFSampleFactory','AFSampleHashMissing','AFServerError'
+    'AFServiceActivity','AFSession','AFTag','AFTagCache'
+    'AFTagFactory','AFTagReference','AFUserAgentFragments','AutoFocusAnalysis'
+    'AutoFocusAPI','AutoFocusObject'
+ ]
+
 # Useful information:
 #
 # * We're not doing any input validation in the client itself. We pass
@@ -495,11 +508,10 @@ class AFSample(AutoFocusObject):
 
     def __init__(self, **kwargs):
         """
-        Notes:
-            The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
-            be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
-            * autofocus.AFSample.search
-            * autofocus.AFSample.get
+        The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+        be instantiated directly. Instead, call the various class method factories to get instance(s) of AFSample. See:
+        - :func:`AFSample.search`
+        - :func:`AFSample.get`
         """
 
         known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
@@ -598,10 +610,39 @@ class AFSample(AutoFocusObject):
     @classmethod
     def search(cls, query, scope = "global"):
         """
-        Notes:
+
+        The AFSample.search method is a factory to return AFSample object instances. These correspond to values returned
+        by the query supplied.
+
+        Notes
+        -----
             Argument validation is done via the REST service. There is no client side validation of arguments. See the
-            following page for details on how searching works in the UI and how to craft a query for the API:
-            https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    for sample in AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}):
+                        pass # Do something with the sample
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
         Args:
             query str:The query to run against autofocus (will also take dicts per examples)
             scope Optional[str]:The scope of the search you're running. Defaults to "global"
@@ -609,31 +650,12 @@ class AFSample(AutoFocusObject):
         Yields:
             AFSample: sample objects as they are paged from the REST service
 
-        Raises:
+        Raises
+        ------
+
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
 
-        Example:
-
-            # Query strings from the AutoFocus web UI
-            # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
-            try:
-                for sample in AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}):
-                    pass # Do something with the sample
-            except AFServerError:
-                pass # Something happened to the server
-            except AFClientError:
-                pass # The client did something stupid, likely a bad query was passed
-
-            # Python dictionary with the query parameters
-            try:
-                sample = AFSample.search({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
-            except StopIteration:
-                pass # No results found
-            except AFServerError:
-                pass # Something happened to the server
-            except AFClientError:
-                pass # The client did something stupid, likely a bad query was passed
         """
         for sample in AFSampleFactory.search(query, scope):
             yield sample
@@ -658,20 +680,24 @@ class AFSample(AutoFocusObject):
             KeyError: In the case that the argument offered is an invalid hash or that the hash
                 doesn't match a sample in AutoFocus
 
-        Examples:
-            try:
-                sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
-                sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
-                sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
-            except KeyError:
-                pass # Sample didn't exist
+        Examples
+        --------
+            Examples using the get method::
+
+                try:
+                    sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
+                    sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
+                    sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
+                except KeyError:
+                    pass # Sample didn't exist
+
         """
         return AFSampleFactory.get(hash)
 
     def get_activity(self, sections, platforms):
         """
         Notes:
-            Points to AFSample.get_analyses. See documentation there for details
+            Points to :func:`AFSample.get_analyses`. See documentation there for details.
         """
         return self.get_analyses(sections, platforms)
 
@@ -687,6 +713,7 @@ class AFSample(AutoFocusObject):
         Raises:
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
+
         Notes:
             sections can also be a string or AutoFocusAnalysis subclass
         """
