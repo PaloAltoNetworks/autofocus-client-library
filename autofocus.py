@@ -135,12 +135,13 @@ class AutoFocusAPI(object):
 
         post_data["size"]   = cls.page_size
         post_data["from"]   = 0
-        post_data["sort"]   = {
-            "create_date": {
-                "order": "desc"
+
+        if "sort" not in post_data:
+            post_data["sort"]   = {
+                "create_date": {
+                    "order": "desc"
+                }
             }
-        }
-        post_data['scope'] = "global"
 
         while True:
 
@@ -197,9 +198,19 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _api_search(cls, path, query, scope = "global"):
+    def _api_search(cls, path, query, scope = "global", sort_by = None, sort_dir = None):
 
-        post_data = { "scope" : scope }
+        post_data = {}
+
+        if scope:
+            post_data["scope"] = scope
+
+        if sort_by:
+            post_data['sort'] = {
+                sort_by: {
+                    "order": sort_dir if sort_dir else "asc"
+                }
+            }
 
         if type(query) is str:
             post_data['query'] = json.loads(query)
@@ -451,12 +462,64 @@ class AFTagFactory(AutoFocusAPI):
         return tag
 
 
-class AFSession(AutoFocusAPI):
+class AFSession(AutoFocusObject):
+
+    def __init__(self, **kwargs):
+        known_attributes = (
+            'emailsender', 'dst.port', 'emailsbjcharset', 'emailrecipient', 'src.ip', 'src.isprivateip',
+            'app', 'device.serial', 'filename', 'device.hostname', 'tstamp', 'dst.ip', 'vsys',
+            'src.port', 'dst.isprivateip', 'sha256', 'emailsubject', 'device.acctname', 'device.countrycode',
+            'device.lob', 'src.country', 'device.industry', 'device.swver', 'device.model', 'device.country',
+            'src.countrycode', 'dst.countrycode', 'dst.country', "isuploaded", "user_id"
+        )
+
+        for k in kwargs.keys():
+            if k not in known_attributes:
+                sys.stderr.write("Unknown attribute! {}\n".format(k))
+
+        self._raw_kwargs = kwargs
+
+        self.app = kwargs.get("app")
+        self.device_acctname = kwargs.get("device.acctname")
+        self.device_countrycode = kwargs.get("device.countrycode")
+        self.device_country = kwargs.get("device.country")
+        self.device_hostname = kwargs.get("device.hostname")
+        self.device_industry = kwargs.get("device.industry")
+        self.device_lob = kwargs.get("device.lob")
+        self.device_model = kwargs.get("device.model")
+        self.device_serial = kwargs.get("device.serial")
+        self.device_swver = kwargs.get("device.swver")
+        self.dst_countrycode = kwargs.get("dst.countrycode")
+        self.dst_country = kwargs.get("dst.country")
+        self.dst_ip = kwargs.get("dst.ip")
+        self.dst_isprivateip = kwargs.get("dst.isprivateip")
+        self.dst_port = kwargs.get("dst.port")
+        self.emailrecipient = kwargs.get("emailrecipient")
+        self.emailsbjcharset = kwargs.get("emailsbjcharset")
+        self.emailsender = kwargs.get("emailsender")
+        self.emailsubject = kwargs.get("emailsubject")
+        self.filename = kwargs.get("filename")
+        self.isuploaded = kwargs.get("isuploaded")
+        self.sha256 = kwargs.get("sha256")
+        self.src_countrycode = kwargs.get("src.countrycode")
+        self.src_country = kwargs.get("src.country")
+        self.src_ip = kwargs.get("src.ip")
+        self.src_isprivateip = kwargs.get("src.isprivateip")
+        self.src_port = kwargs.get("src.port")
+        self.tstamp = kwargs.get("tstamp")
+        self.user_id = kwargs.get("user_id")
+        self.vsys = kwargs.get("vsys")
 
     @classmethod
-    def search(cls, query, scope = "global"):
+    def search(cls, query):
+        for res in AFSessionFactory.search(query):
+            yield res
 
-        for res in cls._api_search("/sessions/search", query, scope):
+class AFSessionFactory(AutoFocusAPI):
+
+    @classmethod
+    def search(cls, query):
+        for res in cls._api_search("/sessions/search", query, scope = None, sort_by = "tstamp"):
             yield AFSession(**res['_source'])
 
 class AFSampleFactory(AutoFocusAPI):
