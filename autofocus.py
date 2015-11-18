@@ -51,7 +51,10 @@ class NotLoaded(object):
     """
     pass
 
-class AFClientError(Exception):
+class AFException(Exception):
+    pass
+
+class AFClientError(AFException):
     """
     Notes:
         AFClientError is an exception that's thrown when the client library is either used improperly, or offers invalid
@@ -67,7 +70,7 @@ class AFClientError(Exception):
         #: Optional[requests.Response]: response from the server (May be None)
         self.response = response
 
-class AFServerError(Exception):
+class AFServerError(AFException):
     """
     Notes:
         AFServerError is an exception that's thrown when the AutoFocus REST service behaves unexpectedly
@@ -82,7 +85,7 @@ class AFServerError(Exception):
         #: requests.Response: response from the server
         self.response = response
 
-class AFSampleAbsent(KeyError):
+class AFSampleAbsent(AFException):
     pass
 
 class _InvalidAnalysisData(Exception):
@@ -135,13 +138,6 @@ class AutoFocusAPI(object):
 
         post_data["size"]   = cls.page_size
         post_data["from"]   = 0
-
-        if "sort" not in post_data:
-            post_data["sort"]   = {
-                "create_date": {
-                    "order": "desc"
-                }
-            }
 
         while True:
 
@@ -198,7 +194,7 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _api_search(cls, path, query, scope = "global", sort_by = None, sort_dir = None):
+    def _api_search(cls, path, query, scope, sort_by, sort_dir):
 
         post_data = {}
 
@@ -220,7 +216,7 @@ class AutoFocusAPI(object):
             else:
                 post_data['query'] = query
         else:
-            raise ValueError("Query must be a valid AutoFocus string or dictionary")
+            raise ValueError("Query must be a valid AutoFocus search string or object (dictionary)")
 
         for res in cls._api_search_request(path, post_data = post_data):
             for hit in res['hits']:
@@ -479,47 +475,120 @@ class AFSession(AutoFocusObject):
 
         self._raw_kwargs = kwargs
 
-        self.app = kwargs.get("app")
-        self.device_acctname = kwargs.get("device.acctname")
-        self.device_countrycode = kwargs.get("device.countrycode")
+        #: str: The application this session activity was related to
+        self.application = kwargs.get("app")
+
+        #: str: The account name for the device (regular users will only see their account)
+        self.account_name = kwargs.get("device.acctname")
+
+        #: str: The country code where the device detecting the activity exists
+        self.device_country_code = kwargs.get("device.countrycode")
+
+        #: str: The country where the device detecting the activity exists
         self.device_country = kwargs.get("device.country")
+
+        #: str: The hostname of the device detecting the activity
         self.device_hostname = kwargs.get("device.hostname")
-        self.device_industry = kwargs.get("device.industry")
-        self.device_lob = kwargs.get("device.lob")
+
+        #: str: The business industry that the activity was detected on
+        self.industry = kwargs.get("device.industry")
+
+        #: str: The line of business that the activity was detected on
+        self.business_line = kwargs.get("device.lob")
+
+        #: str: The model of the device reporting the activity
         self.device_model = kwargs.get("device.model")
+
+        #: str: The serial number of the device reporting activity
         self.device_serial = kwargs.get("device.serial")
-        self.device_swver = kwargs.get("device.swver")
-        self.dst_countrycode = kwargs.get("dst.countrycode")
+
+        #: str: The version of the device reporting activity
+        self.device_version = kwargs.get("device.swver")
+
+        #: str: The country code of the destination
+        self.dst_country_code = kwargs.get("dst.countrycode")
+
+        #: str: The country of the destination
         self.dst_country = kwargs.get("dst.country")
+
+        #: str: The destination IP address
         self.dst_ip = kwargs.get("dst.ip")
-        self.dst_isprivateip = kwargs.get("dst.isprivateip")
+
+        #: bool: true/false whether the IP is private
+        self.dst_is_private_ip = True if kwargs.get("dst.isprivateip") else False
+
+        #: int: the destination port of the activity
         self.dst_port = kwargs.get("dst.port")
-        self.emailrecipient = kwargs.get("emailrecipient")
-        self.emailsbjcharset = kwargs.get("emailsbjcharset")
-        self.emailsender = kwargs.get("emailsender")
-        self.emailsubject = kwargs.get("emailsubject")
-        self.filename = kwargs.get("filename")
-        self.isuploaded = kwargs.get("isuploaded")
+
+        #: str: the destination address(es) of the email
+        self.email_recipient = kwargs.get("emailrecipient")
+
+        #: str: characterset of the email subject
+        self.email_charset = kwargs.get("emailsbjcharset")
+
+        #: str: originating address for the email
+        self.email_sender = kwargs.get("emailsender")
+
+        #: str: characterset of the email subject
+        self.email_subject = kwargs.get("emailsubject")
+
+        #: str: the file name of the sample resulting in this activity
+        self.file_name = kwargs.get("filename")
+
+        #: bool: true/false whether the sample was manually uploaded to wildfire
+        self.is_uploaded = True if kwargs.get("isuploaded") else False
+
+        #: str: the sha256 hash fo the related sample
         self.sha256 = kwargs.get("sha256")
-        self.src_countrycode = kwargs.get("src.countrycode")
+
+        #: str: The country code of the source
+        self.src_country_code = kwargs.get("src.countrycode")
+
+        #: str: The country of the source
         self.src_country = kwargs.get("src.country")
+
+        #: str: The source IP address
         self.src_ip = kwargs.get("src.ip")
-        self.src_isprivateip = kwargs.get("src.isprivateip")
+
+        #: bool: true/false whether the IP is private
+        self.src_is_private_ip = True if kwargs.get("src.isprivateip") else False
+
+        #: int: the destination port of the activity
         self.src_port = kwargs.get("src.port")
-        self.tstamp = kwargs.get("tstamp")
-        self.user_id = kwargs.get("user_id")
-        self.vsys = kwargs.get("vsys")
+
+        timestamp = kwargs.get("tstamp")
+        self._raw_timestamp = timestamp
+
+        if timestamp:
+            timestamp = timestamp.split(".")[0]
+            timestamp = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
+
+        #: datetime: the time the activity was detected
+        self.timestamp = timestamp
+
+        # Doesn't seem to have much meaing. Making private
+        self._user_id = kwargs.get("user_id")
+
+        # Doesn't seem to have much meaing. Making private
+        self._vsys = kwargs.get("vsys")
 
     @classmethod
-    def search(cls, query):
-        for res in AFSessionFactory.search(query):
+    def search(cls, query, sort_by = "tstamp", sort_order = "asc"):
+        for res in AFSessionFactory.search(query, sort_by, sort_order):
             yield res
 
 class AFSessionFactory(AutoFocusAPI):
+    """
+    AFSessionFactory is a class to handle fetching an instantiating AFSession objects. See AFSession for details
+    """
 
     @classmethod
-    def search(cls, query):
-        for res in cls._api_search("/sessions/search", query, scope = None, sort_by = "tstamp"):
+    def search(cls, query, sort_by, sort_order):
+        """
+        Notes: See AFSession.search documentation
+        """
+
+        for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order):
             yield AFSession(**res['_source'])
 
 class AFSampleFactory(AutoFocusAPI):
@@ -528,12 +597,12 @@ class AFSampleFactory(AutoFocusAPI):
     """
 
     @classmethod
-    def search(cls, query, scope = "global"):
+    def search(cls, query, scope, sort_by, sort_order):
         """
         Notes: See AFSample.search documentation
         """
 
-        for res in cls._api_search("/samples/search", query, scope):
+        for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order):
             yield AFSample(**res['_source'])
 
     @classmethod
@@ -557,7 +626,7 @@ class AFSampleFactory(AutoFocusAPI):
             elif len(hash) == 64:
                 query['field'] = "sample.sha256"
 
-            res = cls.search(query).next()
+            res = AFSample.search(query).next()
 
         except StopIteration:
             pass
@@ -671,7 +740,7 @@ class AFSample(AutoFocusObject):
         return value
 
     @classmethod
-    def search(cls, query, scope = "global"):
+    def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc"):
         """
 
         The AFSample.search method is a factory to return AFSample object instances. These correspond to values returned
@@ -709,6 +778,8 @@ class AFSample(AutoFocusObject):
         Args:
             query str:The query to run against autofocus (will also take dicts per examples)
             scope Optional[str]:The scope of the search you're running. Defaults to "global"
+            sort_by Optional[str]: The field to sort results by
+            sort_order Optional[str]; asc or desc sort order
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -720,7 +791,7 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.search(query, scope):
+        for sample in AFSampleFactory.search(query, scope, sort_by, sort_order):
             yield sample
 
     # TODO: Convenience method to handle searching multiple hashes (Have to do crazy paging to get more than 100 or 10000)
