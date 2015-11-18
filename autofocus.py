@@ -461,19 +461,11 @@ class AFTagFactory(AutoFocusAPI):
 class AFSession(AutoFocusObject):
 
     def __init__(self, **kwargs):
-        known_attributes = (
-            'emailsender', 'dst.port', 'emailsbjcharset', 'emailrecipient', 'src.ip', 'src.isprivateip',
-            'app', 'device.serial', 'filename', 'device.hostname', 'tstamp', 'dst.ip', 'vsys',
-            'src.port', 'dst.isprivateip', 'sha256', 'emailsubject', 'device.acctname', 'device.countrycode',
-            'device.lob', 'src.country', 'device.industry', 'device.swver', 'device.model', 'device.country',
-            'src.countrycode', 'dst.countrycode', 'dst.country', "isuploaded", "user_id"
-        )
-
-        for k in kwargs.keys():
-            if k not in known_attributes:
-                sys.stderr.write("Unknown attribute! {}\n".format(k))
-
-        self._raw_kwargs = kwargs
+        """
+        The AFSession should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
+        be instantiated directly. Instead, call the class method factorty to get instance(s) of AFSession. See:
+        - :func:`AFSession.search`
+        """
 
         #: str: The application this session activity was related to
         self.application = kwargs.get("app")
@@ -574,6 +566,54 @@ class AFSession(AutoFocusObject):
 
     @classmethod
     def search(cls, query, sort_by = "tstamp", sort_order = "asc"):
+        """
+
+        The AFSession.search method is a factory to return AFSession object instances. These correspond to values returned
+        by the query supplied.
+
+        Notes
+        -----
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    for session in AFSession.search({'field':'session.malware', 'value':1, 'operator':'is'}):
+                        pass # Do something with the session
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    session = AFSession.search({'field':'session.malware', 'value':1, 'operator':'is'}).next()
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            query str:The query to run against autofocus (will also take dicts per examples)
+            sort_by Optional[str]: The field to sort results by
+            sort_order Optional[str]; asc or desc sort order
+
+        Yields:
+            AFSession: sample objects as they are paged from the REST service
+
+        Raises
+        ------
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
         for res in AFSessionFactory.search(query, sort_by, sort_order):
             yield res
 
