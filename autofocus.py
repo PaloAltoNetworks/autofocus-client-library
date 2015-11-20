@@ -26,6 +26,7 @@ __all__ = [
 #   not balk. The result set will be empty, naturally.
 
 AF_APIKEY = autofocus_config.AF_APIKEY
+_USER_AGENT =  "GSRT AutoFocus Client Library/1.0"
 
 ALL_ANALYSIS_SECTIONS = (
     'apk_defined_activity', 'apk_defined_intent_filter', 'apk_defined_receiver',
@@ -42,7 +43,6 @@ _analysis_class_map = {}
 _class_analysis_map = {}
 
 _base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
-_headers = {"Content-Type" : "application/json"}
 
 class NotLoaded(object):
     """
@@ -51,10 +51,25 @@ class NotLoaded(object):
     """
     pass
 
-class AFException(Exception):
+class AutoFocusException(Exception):
     pass
 
-class AFClientError(AFException):
+class AFRedirectError(AutoFocusException):
+    """
+    Notes:
+        AFRedirectError is an exception that's thrown when the client library is being redirected. All URLs should be
+        direct and not require a redirect
+    Args:
+        message (str): Message describing the error
+        response (requests.Response): The response from the server in the case of on invalid request
+    """
+    def __init__(self, message, response):
+        #: str: a message describing the error
+        self.message = message
+        #: requests.Response: response from the server
+        self.response = response
+
+class AFClientError(AutoFocusException):
     """
     Notes:
         AFClientError is an exception that's thrown when the client library is either used improperly, or offers invalid
@@ -70,7 +85,7 @@ class AFClientError(AFException):
         #: Optional[requests.Response]: response from the server (May be None)
         self.response = response
 
-class AFServerError(AFException):
+class AFServerError(AutoFocusException):
     """
     Notes:
         AFServerError is an exception that's thrown when the AutoFocus REST service behaves unexpectedly
@@ -85,7 +100,7 @@ class AFServerError(AFException):
         #: requests.Response: response from the server
         self.response = response
 
-class AFSampleAbsent(AFException):
+class AFSampleAbsent(AutoFocusException):
     pass
 
 class _InvalidAnalysisData(Exception):
@@ -102,7 +117,7 @@ class AutoFocusAPI(object):
     The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for
     general use and is core to this underlying client library
     """
-
+    api_key = None
     page_size = 2000
 
     def __init__(self, **kwargs):
@@ -118,12 +133,24 @@ class AutoFocusAPI(object):
     @classmethod
     def _api_request(cls, path, post_data = {}, params = {}):
 
-        if not AF_APIKEY:
-            raise Exception("AF_APIKEY is not set. Library requires an APIKEY to be set")
+        if not AutoFocusAPI.api_key:
+            AutoFocusAPI.api_key = AF_APIKEY
+
+        if not AutoFocusAPI.api_key:
+            raise AFClientError("AF_APIKEY is not set. Library requires an APIKEY to be set")
             
-        post_data["apiKey"] = AF_APIKEY
-        
-        resp = requests.post(_base_url + path, params = params, headers=_headers, data=json.dumps(post_data))
+        post_data["apiKey"] = AutoFocusAPI.api_key
+
+        headers = {
+            "Content-Type" : "application/json",
+            "User-Agent" : _USER_AGENT
+        }
+
+        resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
+                             allow_redirects = False)
+
+        if resp.status_code >= 300 and resp.status_code < 400:
+            raise AFRedirectError("Unexpected redirect", resp)
 
         if resp.status_code >= 400 and resp.status_code < 500:
             raise AFClientError(resp._content, resp)
@@ -516,7 +543,7 @@ class AFSession(AutoFocusObject):
         self.email_recipient = kwargs.get("emailrecipient")
 
         #: str: characterset of the email subject
-        self.email_charset = kwargs.get("emailsbjcharset")
+        self.email_charset = kwargs.get("emailsbjcharset", "")
 
         #: str: originating address for the email
         self.email_sender = kwargs.get("emailsender")
