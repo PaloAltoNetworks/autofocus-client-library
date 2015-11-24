@@ -1,5 +1,7 @@
 from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragments
 
+#AutoFocusAPI.api_key = "<my API key>"
+
 sample = AFSample.get("8404e06ff383275462298e830bebe9540fab2092eca5523649d74e6e596ac23d")
 
 for analysis in sample.get_analyses(AFConnectionActivity):
@@ -46,9 +48,10 @@ for analysis in sample.get_analyses(['misc']):
     print analysis
 
 # Mutex Analysis
-for sample in AFSample.search(field = "sample.tasks.mutex", operator = "has any value", value = ""):
+for sample in AFSample.search({ "field" : "sample.tasks.mutex", "operator" : "has any value", "value" : ""}):
     for analysis in sample.get_analyses(['mutex']):
-        print analysis.action
+        print analysis.function_name
+    break
 
 # Java API  Analysis
 sample = AFSample.get("2b69dcee474f802bab494983d1329d2dc3f7d7bb4c9f16836efc794284276c8e")
@@ -98,3 +101,5 @@ for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.ta
     for analysis in sample.get_analyses(['connection']):
 
         print type(analysis)
+
+    break
