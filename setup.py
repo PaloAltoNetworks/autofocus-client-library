@@ -5,8 +5,8 @@ from distutils.core import setup
 setup(
 
     name            =   "GSRT",
-    packages        =   ['autofocs'],
-    version         =   '0.1.0',
+    packages        =   ['autofocus'],
+    version         =   '0.1.1',
     description     =   'AutoFocus Client Lib',
     author          =   'Ben Small, Pat Litke, GSRT',
     author_email    =   'gsrt-tech@paloaltonetworks.com',
