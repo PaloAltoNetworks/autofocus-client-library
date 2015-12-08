@@ -1,8 +1,19 @@
 #!/usr/bin/env python
-import requests, json, sys, time, re
+import requests, json, sys, time, re, os
 from pprint import pprint
 from datetime import datetime
-import autofocus_config
+
+AF_APIKEY = None
+
+try:
+    import ConfigParser
+    parser = ConfigParser.ConfigParser()
+    conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
+    parser.read(os.path.expanduser(conf_path))
+    AF_APIKEY = parser.get("autofocus", "apikey")
+except:
+    sys.stderr.write("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key manually " +
+                     "before utilizing the API\n")
 
 __all__ = [
     'AFApiActivity','AFApkActivityAnalysis','AFApkEmbededUrlAnalysis','AFApkIntentFilterAnalysis'
@@ -25,7 +36,6 @@ __all__ = [
 #   values. So you can offer invalid IPs, such as 592.99.1.1 and it will
 #   not balk. The result set will be empty, naturally.
 
-AF_APIKEY = autofocus_config.AF_APIKEY
 _USER_AGENT =  "GSRT AutoFocus Client Library/1.0"
 
 ALL_ANALYSIS_SECTIONS = (

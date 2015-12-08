@@ -1,2 +1,0 @@
-# The APIKEY MUST BE SET 
-AF_APIKEY = None
