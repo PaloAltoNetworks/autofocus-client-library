@@ -1088,6 +1088,7 @@ class AFConnectionActivity(AutoFocusAnalysis):
      - <protocol> , <dst_ip>:<dst_port> , <country_code>
      - <protocol>-listening , <src_port>
      - <protocol>-listening , <ApiFunctionName> , <src_port>
+     - <process name>, <proto>-listening, RecvFrom, <Integer>
     """
     @classmethod
     def _parse_auto_focus_response(cls, platform, conn_data):
@@ -1096,6 +1097,10 @@ class AFConnectionActivity(AutoFocusAnalysis):
         line_parts = conn_data['line'].split(" , ")
 
         if len(line_parts) >= 4:
+
+            if "RecvFrom" in line_parts and [v for v in line_parts if "-listening" in v]:
+                raise _InvalidAnalysisData
+
             if len(line_parts) > 4:
                 (process_name, protocol, dst_ip_port, uk2, country_code) = line_parts[0:5]
             else:
@@ -1203,14 +1208,18 @@ class AFFileActivity(AutoFocusAnalysis):
         #: str: The attempted action taken on a file
         self.file_action = file_action
 
-        #: str: The affected file's name
+        #: Optional[str]: The affected file's name
         self.file_name = file_name
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, file_data):
 
         line_parts = file_data['line'].split(" , ")
-        (process_name, file_action, file_name) = line_parts[0:3]
+        if len(line_parts) < 3:
+            (process_name, file_action) = line_parts[0:2]
+            file_name = None
+        else:
+            (process_name, file_action, file_name) = line_parts[0:3]
         (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
 
         if not process_name or process_name.lower() in (" ", "unknown"):
@@ -1455,6 +1464,10 @@ class AFRegistryActivity(AutoFocusAnalysis):
 
         line_parts =  registry_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
+
+        if len(line_parts) < 3:
+            raise _InvalidAnalysisData()
+
         registry_key = line_parts[2]
         parameters = line_parts[2:]
         (benign_c, malware_c, grayware_c) = (registry_data.get('b', 0), registry_data.get('m', 0), registry_data.get('g', 0))
@@ -1558,4 +1571,8 @@ for k,v in _analysis_class_map.items():
     v.autofocus_section = k
 
 if __name__ == "__main__":
-    pass
+
+    sample = AFSample.get("e6e0ae7680b7a5b511e0fc0d63884bf5ca92cf1e2d18b688ca521b9c2dbbf796")
+
+    for analysis in sample.get_analyses():
+        print analysis
