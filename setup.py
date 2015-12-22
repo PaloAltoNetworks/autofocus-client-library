@@ -6,7 +6,7 @@ setup(
 
     name            =   "GSRT",
     packages        =   ['autofocus'],
-    version         =   '0.1.1',
+    version         =   '0.1.2',
     description     =   'AutoFocus Client Lib',
     author          =   'Ben Small, Pat Litke, GSRT',
     author_email    =   'gsrt-tech@paloaltonetworks.com',
