@@ -173,20 +173,19 @@ class AutoFocusAPI(object):
     @classmethod
     def _api_search_request(cls, path,  post_data):
 
-        post_data["size"]   = cls.page_size
+        post_data["size"]   = post_data.get("size", cls.page_size)
         post_data["from"]   = 0
 
         while True:
 
-            # There is currently a hardcoded limitation for 4000 samples per query.
-            # Hardcode StopIteration until that issue is addressed
-            if post_data['from'] >= 4000:
-                raise StopIteration()
+            # Trim the page for the 4k limit on regular searches
+            if "type" not in post_data or post_data['type'] != "scan":
 
-            if post_data['from'] + post_data['size'] > 4000:
-                post_data['size'] = 4000 - post_data['from']
+                if post_data['from'] >= 4000:
+                    raise StopIteration()
 
-            # TODO: Remove the above logic once the result cap is removed
+                if post_data['from'] + post_data['size'] > 4000:
+                    post_data['size'] = 4000 - post_data['from']
 
             init_query_time = time.time()
             init_query_resp = cls._api_request(path, post_data = post_data)
@@ -231,12 +230,15 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _api_search(cls, path, query, scope, sort_by, sort_dir):
+    def _prep_post_data(cls, query, scope, size = None, sort_by = None, sort_dir = None):
 
         post_data = {}
 
         if scope:
             post_data["scope"] = scope
+
+        if size:
+            post_data['size'] = 20000
 
         if sort_by:
             post_data['sort'] = {
@@ -254,6 +256,24 @@ class AutoFocusAPI(object):
                 post_data['query'] = query
         else:
             raise ValueError("Query must be a valid AutoFocus search string or object (dictionary)")
+
+        return post_data
+
+    @classmethod
+    def _api_scan(cls, path, query, scope):
+
+        post_data = cls._prep_post_data(query, scope, size = 1000)
+
+        post_data['type'] = "scan"
+
+        for res in cls._api_search_request(path, post_data = post_data):
+            for hit in res['hits']:
+                yield hit
+
+    @classmethod
+    def _api_search(cls, path, query, scope, sort_by, sort_dir):
+
+        post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir)
 
         for res in cls._api_search_request(path, post_data = post_data):
             for hit in res['hits']:
@@ -683,6 +703,15 @@ class AFSampleFactory(AutoFocusAPI):
             yield AFSample(**res['_source'])
 
     @classmethod
+    def scan(cls, query, scope):
+        """
+        Notes: See AFSample.scan documentation
+        """
+
+        for res in cls._api_scan("/samples/search", query, scope):
+            yield AFSample(**res['_source'])
+
+    @classmethod
     def get(cls, hash):
         """
         Notes: See AFSample.get documentation
@@ -817,6 +846,63 @@ class AFSample(AutoFocusObject):
         return value
 
     @classmethod
+    def scan(cls, query, scope = "global"):
+        """
+
+        The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
+        by the query supplied.
+
+        Notes
+        -----
+            This method is identical to the search method, except it allows for returning results beyond the 4000
+            match limit imposed on search. This method doesn't not allow for sorting and can potentially return extremely
+            large result sets.
+
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the scan class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    for sample in AFSample.scan({'field':'sample.malware', 'value':1, 'operator':'is'}):
+                        pass # Do something with the sample
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    sample = AFSample.scan({'field':'sample.malware', 'value':1, 'operator':'is'}).next()
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            query str:The query to run against autofocus (will also take dicts per examples)
+            scope Optional[str]:The scope of the search you're running. Defaults to "global"
+
+        Yields:
+            AFSample: sample objects as they are paged from the REST service
+
+        Raises
+        ------
+
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        for sample in AFSampleFactory.scan(query, scope):
+            yield sample
+
+    @classmethod
     def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc"):
         """
 
@@ -825,6 +911,8 @@ class AFSample(AutoFocusObject):
 
         Notes
         -----
+            This method has a hard 4000 result limit imposed by the REST API.
+
             Argument validation is done via the REST service. There is no client side validation of arguments. See the
             `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
             for details on how searching works in the UI and how to craft a query for the API.
@@ -1572,7 +1660,12 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    sample = AFSample.get("e6e0ae7680b7a5b511e0fc0d63884bf5ca92cf1e2d18b688ca521b9c2dbbf796")
+    query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
+    i = 0
+    for sample in AFSample.scan(query):
+        print sample.md5
+        i+=1
+        if i > 22000:
+            import sys
+            sys.exit()
 
-    for analysis in sample.get_analyses():
-        print analysis
