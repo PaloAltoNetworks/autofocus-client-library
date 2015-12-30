@@ -171,10 +171,104 @@ class AutoFocusAPI(object):
         return resp
 
     @classmethod
+    def _api_count_request(cls, path,  post_data):
+
+        # Be gentle, we're only going to pull 1 sample, since we're not using it
+        post_data['size'] = 1
+        post_data['from'] = 0
+
+        init_query_time = time.time()
+        init_query_resp = cls._api_request(path, post_data = post_data)
+        init_query_data = init_query_resp.json()
+        af_cookie = init_query_data['af_cookie']
+
+        i = 0
+
+        # We'll poll the result bucket until we get a complete query and then we'll return the count
+        while True:
+
+            i += 1
+
+            request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
+
+            # Try our request. Check for AF Cookie going away, which is weird
+            # Catch it and add more context. Then throw it up again
+            try:
+                resp = cls._api_request(request_url)
+                resp_data = resp.json()
+            except AFClientError as e:
+                raise e
+
+            # If we've gotten our bucket size worth of data, or the query has complete
+            if resp_data.get('af_complete_percentage', 100) == 100:
+                return resp_data['total']
+
+            if i > 100:
+                err_str = "Polled 100 times for results on {} in {} secs. Server reports {} percent complete.".format(
+                    af_cookie,
+                    time.time() - init_query_time,
+                    resp_data.get("af_complete_percentage", None)
+                )
+                raise AFServerError(err_str, resp_data)
+
+    @classmethod
+    def _api_scan_request(cls, path, post_data):
+
+        post_data["size"] = post_data.get("size", cls.page_size)
+
+        expected_res_count = 0
+        actual_res_count = 0
+
+        while True:
+
+            init_query_time = time.time()
+            init_query_resp = cls._api_request(path, post_data = post_data)
+            init_query_data = init_query_resp.json()
+            af_cookie = init_query_data['af_cookie']
+
+            resp_data = {}
+            prev_resp_data = {}
+            i = 0
+            while True:
+
+                i += 1
+
+                request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
+
+                # Try our request. Check for AF Cookie going away, which is weird
+                # Catch it and add more context. Then throw it up again
+                try:
+                    resp = cls._api_request(request_url)
+                    resp_data = resp.json()
+                except AFClientError as e:
+                    # TODO: Can be removed once AF Cookie going away bug is fixed.
+                    if "AF Cookie Not Found" in e.message:
+                        resp_data = {}
+                        #raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
+                        #                    % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
+                    else:
+                        raise e
+
+                prev_resp_data = resp_data
+
+                if not expected_res_count:
+                    expected_res_count = resp_data['total']
+
+                actual_res_count += len(resp_data.get('hits', []))
+
+                # If we've gotten no hits and the percentage is 100
+                if len(resp_data.get('hits', [])) == 0 and resp_data.get('af_complete_percentage', 100) == 100:
+                    if actual_res_count != expected_res_count:
+                        sys.stderr.write("Hmm, expecting {} results, but only got {}".format(expected_res_count, actual_res_count))
+                    raise StopIteration()
+
+                yield resp_data
+
+    @classmethod
     def _api_search_request(cls, path,  post_data):
 
-        post_data["size"]   = post_data.get("size", cls.page_size)
-        post_data["from"]   = 0
+        post_data["size"] = post_data.get("size", cls.page_size)
+        post_data["from"] = 0
 
         while True:
 
@@ -238,7 +332,7 @@ class AutoFocusAPI(object):
             post_data["scope"] = scope
 
         if size:
-            post_data['size'] = 20000
+            post_data['size'] = size
 
         if sort_by:
             post_data['sort'] = {
@@ -260,13 +354,20 @@ class AutoFocusAPI(object):
         return post_data
 
     @classmethod
-    def _api_scan(cls, path, query, scope):
+    def _api_count(cls, path, query, scope):
 
-        post_data = cls._prep_post_data(query, scope, size = 1000)
+        post_data = cls._prep_post_data(query, scope)
+
+        return cls._api_count_request(path, post_data)
+
+    @classmethod
+    def _api_scan(cls, path, query, scope, page_size):
+
+        post_data = cls._prep_post_data(query, scope, size = page_size)
 
         post_data['type'] = "scan"
 
-        for res in cls._api_search_request(path, post_data = post_data):
+        for res in cls._api_scan_request(path, post_data):
             for hit in res['hits']:
                 yield hit
 
@@ -275,7 +376,7 @@ class AutoFocusAPI(object):
 
         post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir)
 
-        for res in cls._api_search_request(path, post_data = post_data):
+        for res in cls._api_search_request(path, post_data):
             for hit in res['hits']:
                 yield hit
 
@@ -622,6 +723,110 @@ class AFSession(AutoFocusObject):
         self._vsys = kwargs.get("vsys")
 
     @classmethod
+    def scan(cls, query, page_size = 20000):
+        """
+
+        The AFSession.scan method is a factory to return AFSession object instances. These correspond to values returned
+        by the query supplied.
+
+        Notes
+        -----
+            This method is identical to the search method, except it allows for returning results beyond the 4000
+            match limit imposed on search. This method does not allow for sorting and can potentially return extremely
+            large result sets.
+
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    for session in AFSession.scan({'field':'session.malware', 'value':1, 'operator':'is'}):
+                        pass # Do something with the session
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    session = AFSession.search({'field':'session.malware', 'value':1, 'operator':'is'}).next()
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            query str: The query to run against autofocus (will also take dicts per examples)
+
+        Yields:
+            AFSession: sample objects as they are paged from the REST service
+
+        Raises
+        ------
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        for res in AFSessionFactory.scan(query, page_size):
+            yield res
+
+    @classmethod
+    def count(cls, query):
+        """
+
+        The AFSession.count method returns the count of sessions matching the query offered
+
+        Notes
+        -----
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    session_count = AFSession.count({'field':'session.malware', 'value':1, 'operator':'is'}):
+                        pass # Do something with the session
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    session = AFSession.count({'field':'session.malware', 'value':1, 'operator':'is'})
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            query str: The query to run against autofocus (will also take dicts per examples)
+
+        Returns:
+            int: the number of sessions matching the query
+
+        Raises
+        ------
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        return AFSessionFactory.count(query)
+
+    @classmethod
     def search(cls, query, sort_by = "tstamp", sort_order = "asc"):
         """
 
@@ -680,6 +885,23 @@ class AFSessionFactory(AutoFocusAPI):
     """
 
     @classmethod
+    def count(cls, query):
+        """
+        Notes: See AFSession.count documentation
+        """
+
+        return cls._api_count("/sessions/search", query, None)
+
+    @classmethod
+    def scan(cls, query, page_size):
+        """
+        Notes: See AFSession.scan documentation
+        """
+
+        for res in cls._api_scan("/sessions/search", query, None, page_size):
+            yield AFSession(**res['_source'])
+
+    @classmethod
     def search(cls, query, sort_by, sort_order):
         """
         Notes: See AFSession.search documentation
@@ -703,12 +925,20 @@ class AFSampleFactory(AutoFocusAPI):
             yield AFSample(**res['_source'])
 
     @classmethod
-    def scan(cls, query, scope):
+    def count(cls, query, scope):
+        """
+        Notes: See AFSample.count documentation
+        """
+
+        return cls._api_count("/samples/search", query, scope)
+
+    @classmethod
+    def scan(cls, query, scope, page_size):
         """
         Notes: See AFSample.scan documentation
         """
 
-        for res in cls._api_scan("/samples/search", query, scope):
+        for res in cls._api_scan("/samples/search", query, scope, page_size):
             yield AFSample(**res['_source'])
 
     @classmethod
@@ -802,8 +1032,17 @@ class AFSample(AutoFocusObject):
         #: datetime: The time the sample was first seen by the system
         self.create_date = kwargs['create_date']
 
+        if kwargs['malware'] not in (0,1,2):
+            sys.stderr.write("hmm, unknown malware value {}\n".format(kwargs['malware']))
+
+        #: bool: Whether WildFire thinks the sample is benign or not
+        self.benign = True if kwargs['malware'] == 0 else False
+
+        #: bool: Whether WildFire thinks the sample is grayware or not
+        self.grayware = True if kwargs['malware'] == 2 else False
+
         #: bool: Whether WildFire thinks the sample is Malware or not
-        self.malware = True if kwargs['malware'] else False
+        self.malware = True if kwargs['malware'] == 1 else False
 
         #: int: The size of the sample in bytes
         self.size = kwargs['size']
@@ -846,7 +1085,58 @@ class AFSample(AutoFocusObject):
         return value
 
     @classmethod
-    def scan(cls, query, scope = "global"):
+    def count(cls, query, scope = "global"):
+        """
+
+        The AFSample.count method returns the total number of samples matching the query for the given scope
+
+        Notes
+        -----
+
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the count class method::
+
+                # Query strings from the AutoFocus web UI
+                # https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html
+                try:
+                    total_sample_count = AFSample.count({'field':'sample.malware', 'value':1, 'operator':'is'})
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+
+                # Python dictionary with the query parameters
+                try:
+                    total_sample_count = AFSample.count({'field':'sample.malware', 'value':1, 'operator':'is'})
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            query str:The query to run against autofocus (will also take dicts per examples)
+            scope Optional[str]:The scope of the search you're running. Defaults to "global"
+
+        Returns:
+            int: the number of samples matching the query & scope
+
+        Raises
+        ------
+
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        return AFSampleFactory.count(query, scope)
+
+    @classmethod
+    def scan(cls, query, scope = "global", page_size = 20000):
         """
 
         The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
@@ -855,7 +1145,7 @@ class AFSample(AutoFocusObject):
         Notes
         -----
             This method is identical to the search method, except it allows for returning results beyond the 4000
-            match limit imposed on search. This method doesn't not allow for sorting and can potentially return extremely
+            match limit imposed on search. This method does not allow for sorting and can potentially return extremely
             large result sets.
 
             Argument validation is done via the REST service. There is no client side validation of arguments. See the
@@ -899,7 +1189,7 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.scan(query, scope):
+        for sample in AFSampleFactory.scan(query, scope, page_size):
             yield sample
 
     @classmethod
@@ -1661,11 +1951,14 @@ for k,v in _analysis_class_map.items():
 if __name__ == "__main__":
 
     query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
-    i = 0
-    for sample in AFSample.scan(query):
-        print sample.md5
-        i+=1
-        if i > 22000:
-            import sys
-            sys.exit()
+
+    count = AFSession.scan(query)
+
+    print "Got {} malware sessions from search".format(count)
+    #i = 0
+    #for sample in AFSample.scan(query):
+    #    if i > 22000:
+    #        print "Got 22000 results"
+    #        import sys
+    #        sys.exit()
 
