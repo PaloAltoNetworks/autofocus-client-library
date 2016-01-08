@@ -685,6 +685,9 @@ class AFSession(AutoFocusObject):
         #: str: the file name of the sample resulting in this activity
         self.file_name = kwargs.get("filename")
 
+        #: str: the URL the file originated from
+        self.file_url = kwargs.get("fileurl")
+
         #: bool: true/false whether the sample was manually uploaded to wildfire
         self.is_uploaded = True if kwargs.get("isuploaded") else False
 
@@ -1950,11 +1953,11 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
+    query = '{"operator":"all","children":[{"field":"sample.sha256","operator":"is","value":"cde2540ac97b40f5f580e9ce8a0f4c66da074d6a25fac3b0e9771b45f3478ff0"}]}'
 
-    count = AFSession.scan(query)
-
-    print "Got {} malware sessions from search".format(count)
+    for session in AFSession.search(query):
+        print "File ULR: {}".format(session.file_url)
+    #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
     #i = 0
     #for sample in AFSample.scan(query):
     #    if i > 22000:
