@@ -248,6 +248,8 @@ class AutoFocusAPI(object):
                         #                    % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
                     else:
                         raise e
+                except Exception as e:
+                    raise e
 
                 prev_resp_data = resp_data
 
@@ -1953,15 +1955,15 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    query = '{"operator":"all","children":[{"field":"sample.sha256","operator":"is","value":"cde2540ac97b40f5f580e9ce8a0f4c66da074d6a25fac3b0e9771b45f3478ff0"}]}'
+    #query = '{"operator":"all","children":[{"field":"sample.sha256","operator":"is","value":"cde2540ac97b40f5f580e9ce8a0f4c66da074d6a25fac3b0e9771b45f3478ff0"}]}'
 
-    for session in AFSession.search(query):
-        print "File ULR: {}".format(session.file_url)
+    #for session in AFSession.search(query):
+    #    print "File ULR: {}".format(session.file_url)
     #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
-    #i = 0
-    #for sample in AFSample.scan(query):
-    #    if i > 22000:
-    #        print "Got 22000 results"
-    #        import sys
-    #        sys.exit()
+    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
+    i = 0
+    for sample in AFSample.scan(query):
+        i += 0
+
+    print "Got {} samples".format(i)
 
