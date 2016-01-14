@@ -26,6 +26,7 @@ query = """
 }
 """
 
+# session is an instance of AFSession
 for session in AFSession.search(query):
     print "to:{} from:{} charset:{} subject:{}".format(
         session.email_recipient,

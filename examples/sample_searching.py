@@ -7,11 +7,15 @@ from autofocus import AFSample, AFSampleAbsent
 ###############################
 hash = "7f38fd3e55a4139d788a4475ab0a5d83bf7686a37ef5e54a65364a0d781b523c"
 try:
+
+    # sample is instance of AFSample()
     sample = AFSample.get(hash)
 
+    # Using instrospection, you can analyze the attributes of the AFSample instance
     print "Pulled sample {} and got the follow attributes".format(hash)
     for k,v in sample.__dict__.items():
         print "\t{}={}".format(k, v)
+
 except AFSampleAbsent:
     pass # The sample isn't in AutoFocus
 
@@ -26,7 +30,9 @@ query = '{"operator":"all","children":[{"field":"sample.malware","operator":"is"
 # * The client library handles all paging for you, so you just need to pose a question
 #   and parse the results
 for sample in AFSample.search(query):
-    pass
+    # sample is an instance of AFSample
+    print sample.sha256
+    break
 
 #################################
 # Searching for multiple hashes #

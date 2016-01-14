@@ -96,10 +96,21 @@ for sample_hash in test_hashes:
 #        for tag in sample.tags:
 #            print tag.public_name
 
-for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tasks.connection","operator":"contains","value":"tcp"},{"field":"sample.tag_scope","operator":"is","value":"unit42"}]}'):
+query = """
+{
+    "operator":"all",
+    "children":[
+        {"field":"sample.tasks.connection","operator":"contains","value":"tcp"},
+        {"field":"sample.tag_scope","operator":"is","value":"unit42"}
+    ]
+}
+"""
 
+# sample is instance of AFSample
+for sample in AFSample.search(query):
+
+    # analysis is a subclass of AFAnalysis
     for analysis in sample.get_analyses(['connection']):
-
         print type(analysis)
 
     break
