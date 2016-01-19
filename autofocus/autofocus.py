@@ -113,6 +113,12 @@ class AFServerError(AutoFocusException):
 class AFSampleAbsent(AutoFocusException):
     pass
 
+class _InvalidSampleData(Exception):
+    """
+    Private class meant to be used for skipping bad sample rows
+    """
+    pass
+
 class _InvalidAnalysisData(Exception):
     """
     Private class meant to be used for skipping bad analysis data rows
@@ -927,7 +933,13 @@ class AFSampleFactory(AutoFocusAPI):
         """
 
         for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order):
-            yield AFSample(**res['_source'])
+            try:
+                yield AFSample(**res['_source'])
+            except AutoFocusException as e:
+                raise e
+            except:
+                # HMMM bug in sample data
+                pass
 
     @classmethod
     def count(cls, query, scope):
@@ -995,7 +1007,6 @@ class AFSample(AutoFocusObject):
         for k, v in kwargs.items():
             if k not in known_attributes:
                 sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
-
 
         #: str: md5 sum of the sample
         self.md5 = kwargs['md5']
@@ -1960,7 +1971,16 @@ if __name__ == "__main__":
     #for session in AFSession.search(query):
     #    print "File ULR: {}".format(session.file_url)
     #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
-    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
+#    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
+    query = r'{"operator":"all","children":[{"field":"session.device.serial","operator":"is","value":"001701008415"}]}'
+
+    for sample in AFSample.search(query):
+        print sample.md5
+
+    print "All done!"
+
+    sys.exit()
+
     i = 0
     for sample in AFSample.scan(query):
         i += 0
