@@ -999,8 +999,8 @@ class AFSample(AutoFocusObject):
         - :func:`AFSample.get`
         """
 
-        known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
-                            "virustotal_hit", "source_label", "finish_date", "tag", "digital_signer", "update_date",\
+        known_attributes = ("create_date", "file_type", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
+                            "virustotal_hit", "source_label", "finish_date", "tags", "digital_signer", "update_date",\
                             "ssdeep", "imphash")
 
         # TODO: remove this when the library matures, needless checking once we sort out attributes
