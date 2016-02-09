@@ -1067,17 +1067,17 @@ class AFSample(AutoFocusObject):
         #: Optional[str]: The verdict of the sample as a string. Will be None if the sample doesn't have a verdict
         self.verdict = None
 
-        if kwargs['malware'] in wf_verdict_map:
+        if kwargs.get('malware', None) in wf_verdict_map:
             self.verdict = wf_verdict_map[kwargs['malware']]
 
         #: bool: Whether WildFire thinks the sample is benign or not
-        self.benign = True if kwargs['malware'] == 0 else False
+        self.benign = True if kwargs.get('malware', None) == 0 else False
 
         #: bool: Whether WildFire thinks the sample is grayware or not
-        self.grayware = True if kwargs['malware'] == 2 else False
+        self.grayware = True if kwargs.get('malware', None) == 2 else False
 
         #: bool: Whether WildFire thinks the sample is Malware or not
-        self.malware = True if kwargs['malware'] == 1 else False
+        self.malware = True if kwargs.get('malware', None) == 1 else False
 
         #: int: The size of the sample in bytes
         self.size = kwargs['size']
