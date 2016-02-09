@@ -1048,8 +1048,27 @@ class AFSample(AutoFocusObject):
         #: datetime: The time the sample was first seen by the system
         self.create_date = kwargs['create_date']
 
-        if kwargs['malware'] not in (0,1,2):
-            sys.stderr.write("hmm, unknown malware value {}\n".format(kwargs['malware']))
+        #Below are our verdict predefined meaning:
+        # benign : 0
+        # malware : 1
+        # grayware: 2
+        # pending : -100, sample record exists in DB , but no value in malware field (internally, sample is at pending state or at error state, but less than configurable 1 day old)
+        # error : -101, sample in error state (internally, sample is at error state, more than 1 day old)
+        # unknown : -102, cannot find sample record in DB
+        wf_verdict_map = {
+            0: "benign",
+            1: "malware",
+            2: "grayware",
+            -100: "pending",
+            -101: "error",
+            -102: "unknown"
+        }
+
+        #: Optional[str]: The verdict of the sample as a string. Will be None if the sample doesn't have a verdict
+        self.verdict = None
+
+        if kwargs['malware'] in wf_verdict_map:
+            self.verdict = wf_verdict_map[kwargs['malware']]
 
         #: bool: Whether WildFire thinks the sample is benign or not
         self.benign = True if kwargs['malware'] == 0 else False
@@ -1059,16 +1078,6 @@ class AFSample(AutoFocusObject):
 
         #: bool: Whether WildFire thinks the sample is Malware or not
         self.malware = True if kwargs['malware'] == 1 else False
-
-        #: Optional[verdict]: The verdict of the sample as a string. will be None if the sample doesn't have a verdict
-        self.verdict = None
-
-        if self.benign:
-            self.verdict = "benign"
-        elif self.grayware:
-            self.verdict = "grayware"
-        elif self.malware:
-            self.verdict = "malware"
 
         #: int: The size of the sample in bytes
         self.size = kwargs['size']
