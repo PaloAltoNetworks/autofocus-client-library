@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
 
-    name            =   "GSRT",
+    name            =   "AutofocusClientLibrary",
     packages        =   ['autofocus'],
     version         =   '0.1.2',
     description     =   'AutoFocus Client Lib',
