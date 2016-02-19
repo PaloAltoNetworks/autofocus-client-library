@@ -1098,7 +1098,7 @@ class AFSample(AutoFocusObject):
         self.digital_signer = kwargs.get("digital_signer", None)
 
         # Private _tags
-        self._tags = kwargs.get('tag', None)
+        self._tags = kwargs.get('tag', [])
 
     def __getattribute__(self, attr):
 
