@@ -110,7 +110,10 @@ class AFServerError(AutoFocusException):
         #: requests.Response: response from the server
         self.response = response
 
-class AFSampleAbsent(AutoFocusException):
+class AFSampleAbsent(AutoFocusException, KeyError):
+    pass
+
+class AFTagAbsent(AutoFocusException, KeyError):
     pass
 
 class _InvalidSampleData(Exception):
@@ -504,7 +507,6 @@ class AFTag(AutoFocusObject):
             List[AFTag]: as list of AFTag objects based on the arguments offered.
 
         Raises:
-            KeyError: Raises a key error when the tag does not exist
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
 
@@ -524,15 +526,15 @@ class AFTag(AutoFocusObject):
             AFTag: an instance of AFTag for the given tag name
 
         Raises:
-            KeyError: Raises a key error when the tag does not exist
+            AFSampleAbsent: Raises a key error when the tag does not exist
             AFClientError: In the case that the client did something unexpected
             AFServerError: In the case that the client did something unexpected
 
         Examples:
             try:
                 tag = AFTag.get("Made up tag name")
-            except KeyError:
-                pass # Sample didn't exist
+            except AFTagAbsent:
+                pass # Tag didn't exist
         """
         return AFTagFactory.get(tag_name)
 
@@ -615,7 +617,7 @@ class AFTagFactory(AutoFocusAPI):
                 resp = cls._api_request("/tag/" + tag_name).json()
             except AFClientError as e:
                 if e.response.code == 404:
-                    raise KeyError("No such tag exists")
+                    raise AFTagAbsent("No such tag exists")
                 else:
                     raise e
 
@@ -965,7 +967,7 @@ class AFSampleFactory(AutoFocusAPI):
         """
 
         if not re.match(r'^([A-Fa-f0-9]{32}|[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$', hash):
-            raise KeyError("Argument mush be a valid md5, sha1, or sha256 hash")
+            raise AFClientError("Argument mush be a valid md5, sha1, or sha256 hash")
 
         res = None
 
@@ -985,7 +987,7 @@ class AFSampleFactory(AutoFocusAPI):
             pass
 
         if not res:
-            raise KeyError("No such hash found in AutoFocus")
+            raise AFSampleAbsent("No such hash found in AutoFocus")
 
         return res
 
@@ -1299,10 +1301,9 @@ class AFSample(AutoFocusObject):
             AFSample: Instance of AFSample that matches the hash offered
 
         Raises:
-            AFClientError: In the case that the client did something unexpected
+            AFClientError: In the case that the client did something unexpected or an invalid hash was offered
             AFServerError: In the case that the client did something unexpected
-            KeyError: In the case that the argument offered is an invalid hash or that the hash
-                doesn't match a sample in AutoFocus
+            AFSampleAbsent in the case that the sample is absent in autofocus
 
         Examples
         --------
@@ -1312,7 +1313,7 @@ class AFSample(AutoFocusObject):
                     sample = AFSample.get("31a9133e095632a09a46b50f15b536dd2dc9e25e7e6981dae5913c5c8d75ce20")
                     sample = AFSample.get("97a174dbc51a2c4f9cad05b6fc9af10d3ba7c919")
                     sample = AFSample.get("a1f19a3ebd9213d2f0d895ec86a53390")
-                except KeyError:
+                except AFSampleAbsent:
                     pass # Sample didn't exist
 
         """
