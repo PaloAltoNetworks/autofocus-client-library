@@ -352,7 +352,7 @@ class AutoFocusAPI(object):
                 }
             }
 
-        if type(query) is str:
+        if type(query) is str or type(query) is unicode:
             post_data['query'] = json.loads(query)
         elif type(query) is dict:
             if 'field' in query:
@@ -1992,7 +1992,8 @@ if __name__ == "__main__":
     #    print "File ULR: {}".format(session.file_url)
     #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
 #    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
-    query = r'{"operator":"all","children":[{"field":"session.device.serial","operator":"is","value":"001701008415"}]}'
+
+    query = u'{"operator":"all","children":[{"field":"session.device.serial","operator":"is","value":"001701008415"}]}'
 
     for sample in AFSample.search(query):
         print sample.md5
