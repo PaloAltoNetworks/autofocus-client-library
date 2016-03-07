@@ -1326,7 +1326,7 @@ class AFSample(AutoFocusObject):
         """
         return self.get_analyses(sections, platforms)
 
-    def get_analyses(self, sections = None, platforms = ["win7", "winxp", "staticAnalyzer"]):
+    def get_analyses(self, sections = None, platforms = None):
         """
         Args:
             sections (Optional[array[str]]): The analysis sections desired. Can also be class objects for the
@@ -1992,6 +1992,8 @@ if __name__ == "__main__":
     #    print "File ULR: {}".format(session.file_url)
     #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
 #    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
+
+    AFSample.get("26550f8333b907b0515b3c696d1c86af2fed0e9d3ea832df3db902685f1461fe").get_analyses()
 
     query = u'{"operator":"all","children":[{"field":"session.device.serial","operator":"is","value":"001701008415"}]}'
 
