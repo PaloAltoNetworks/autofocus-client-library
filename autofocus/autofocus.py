@@ -1457,23 +1457,166 @@ class AFApkSensorAnalysis(AutoFocusAnalysis):
 
 #apk_defined_service
 class AFApkServiceAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, service, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the service used
+        self.service = service
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, svc_data):
+
+        line_parts = svc_data['line'].split(" , ")
+        (service) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (svc_data.get('b', 0), svc_data.get('m', 0), svc_data.get('g', 0))
+        return cls(platform, service, benign_c, malware_c, grayware_c)
 
 #apk_embeded_url
 class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, url, save_location, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The URL accessed by the device
+        self.url = url
+
+        #: str: The location that the URL's content was saved on the device
+        self.save_location = save_location
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, perm_data):
+
+        line_parts = perm_data['line'].split(" , ")
+        (url, save_location) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (perm_data.get('b', 0), perm_data.get('m', 0), perm_data.get('g', 0))
+        return cls(platform, url, save_location, benign_c, malware_c, grayware_c)
 
 #apk_requested_permission
 class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, permission, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the permission requested  by the sample
+        self.permission = permission
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, perm_data):
+
+        line_parts = perm_data['line'].split(" , ")
+        (permission) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (perm_data.get('b', 0), perm_data.get('m', 0), perm_data.get('g', 0))
+        return cls(platform, permission, benign_c, malware_c, grayware_c)
 
 #apk_sensitive_api_call
 class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, class_, method, args, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The name of the class accessed by the APK
+        self.class_name = class_
+
+        #: str: The name of the method accessed by the APK
+        self.method = method
+
+        #: Optional(List[str]): The args passed to the method
+        self.args = args
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, api_data):
+
+        line_parts = api_data['line'].split(" , ")
+        (class_, method) = line_parts[0].split(";->")
+        class_ = class_.replace("/", ".")
+        args = []
+        if len(line_parts) > 1:
+            args = line_parts[1:]
+        (benign_c, malware_c, grayware_c) = (api_data.get('b', 0), api_data.get('m', 0), api_data.get('g', 0))
+        return cls(platform, class_, method, args, benign_c, malware_c, grayware_c)
 
 #apk_suspicious_api_call
 class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, class_, method, args, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The name of the class accessed by the APK
+        self.class_name = class_
+
+        #: str: The name of the method accessed by the APK
+        self.method = method
+
+        #: Optional(List[str]): The args passed to the method
+        self.args = args
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, api_data):
+
+        line_parts = api_data['line'].split(" , ")
+        (class_, method) = line_parts[0].split(";->")
+        class_ = class_.replace("/", ".")
+        args = []
+        if len(line_parts) > 1:
+            args = line_parts[1:]
+        (benign_c, malware_c, grayware_c) = (api_data.get('b', 0), api_data.get('m', 0), api_data.get('g', 0))
+        return cls(platform, class_, method, args, benign_c, malware_c, grayware_c)
 
 #apk_suspicious_file
 class AFApkSuspiciousFileAnalysis(AutoFocusAnalysis):
