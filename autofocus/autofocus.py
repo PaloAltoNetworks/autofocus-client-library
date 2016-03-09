@@ -225,54 +225,35 @@ class AutoFocusAPI(object):
 
         post_data["size"] = post_data.get("size", cls.page_size)
 
-        expected_res_count = 0
         actual_res_count = 0
+
+        init_query_resp = cls._api_request(path, post_data = post_data)
+        init_query_data = init_query_resp.json()
+        af_cookie = init_query_data['af_cookie']
 
         while True:
 
-            init_query_time = time.time()
-            init_query_resp = cls._api_request(path, post_data = post_data)
-            init_query_data = init_query_resp.json()
-            af_cookie = init_query_data['af_cookie']
+            request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
+            resp = cls._api_request(request_url)
+            resp_data = resp.json()
 
-            resp_data = {}
-            prev_resp_data = {}
-            i = 0
-            while True:
+            # We should always have a 'total' and an 'af_complete_percentage'
+            if 'total' not in resp_data or 'af_complete_percentage' not in resp_data:
+                raise AFServerError("Server sent malformed response", resp)
 
-                i += 1
+            #prev_resp_data = resp_data
 
-                request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
+            actual_res_count += len(resp_data.get('hits', []))
 
-                # Try our request. Check for AF Cookie going away, which is weird
-                # Catch it and add more context. Then throw it up again
-                try:
-                    resp = cls._api_request(request_url)
-                    resp_data = resp.json()
-                except AFClientError as e:
-                    # TODO: Can be removed once AF Cookie going away bug is fixed.
-                    if "AF Cookie Not Found" in e.message:
-                        resp_data = {}
-                        #raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
-                        #                    % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
-                    else:
-                        raise e
-                except Exception as e:
-                    raise e
+            # If we've gotten no hits and the percentage is 100
+            if resp_data['af_complete_percentage'] == 100:
+                if actual_res_count != resp_data['total']:
+                    # Sanity check
+                    raise AFServerError("Expecting {} results, but actually got {} while scanning. AFCOOKIE: {}"
+                                            .format(resp_data['total'], actual_res_count, af_cookie))
+                raise StopIteration()
 
-                prev_resp_data = resp_data
-
-                if not expected_res_count:
-                    expected_res_count = resp_data['total']
-
-                actual_res_count += len(resp_data.get('hits', []))
-
-                # If we've gotten no hits and the percentage is 100
-                if len(resp_data.get('hits', [])) == 0 and resp_data.get('af_complete_percentage', 100) == 100:
-                    if actual_res_count != expected_res_count:
-                        sys.stderr.write("Hmm, expecting {} results, but only got {}".format(expected_res_count, actual_res_count))
-                    raise StopIteration()
-
+            if 'hits' in resp_data:
                 yield resp_data
 
     @classmethod
@@ -2165,7 +2146,11 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+    query = '{"operator":"all","children":[{"field":"alias.domain","operator":"contains","value":"markovqwesta.com"}]}'
 
+    for session in AFSession.scan(query):
+        pass
+    sys.exit()
     #query = '{"operator":"all","children":[{"field":"sample.sha256","operator":"is","value":"cde2540ac97b40f5f580e9ce8a0f4c66da074d6a25fac3b0e9771b45f3478ff0"}]}'
 
     #for session in AFSession.search(query):
