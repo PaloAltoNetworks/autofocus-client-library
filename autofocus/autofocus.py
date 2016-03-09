@@ -260,7 +260,7 @@ class AutoFocusAPI(object):
                 if actual_res_count != resp_data['total']:
                     # Sanity check
                     raise AFServerError("Expecting {} results, but actually got {} while scanning. AFCOOKIE: {}"
-                                            .format(resp_data['total'], actual_res_count, af_cookie))
+                                            .format(resp_data['total'], actual_res_count, af_cookie), resp)
                 raise StopIteration()
 
             i += 1
@@ -274,7 +274,7 @@ class AutoFocusAPI(object):
             total_sleep_time += sleep_time
 
             if total_sleep_time >= 600:
-                break
+                raise AFServerError("Timed out while pulling results", resp)
 
             time.sleep(sleep_time)
 
@@ -2271,5 +2271,16 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    pass
+    query = r'{"operator":"all","children":[{"field":"alias.domain","operator":"contains","value":"markovqwesta.com"}]}'
 
+
+    oi = 0
+    while oi < 20:
+        start_time = time.time()
+
+        i = 0
+        for session in AFSession.search(query):
+            i+=1
+        print "Got {} sessions in {} seconds".format(i, time.time() - start_time)
+
+        oi += 1
