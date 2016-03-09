@@ -27,6 +27,7 @@ from autofocus import AFServerError
 from autofocus import AFServiceActivity
 from autofocus import AFSession
 from autofocus import AFTag
+from autofocus import AFTagAbsent
 from autofocus import AFTagCache
 from autofocus import AFTagFactory
 from autofocus import AFTagReference
@@ -38,40 +39,40 @@ from autofocus import AutoFocusObject
 
 __all__ = [
     'AFApiActivity',
-    'AFApkActivityAnalysis'
+    'AFApkActivityAnalysis',
     'AFApkEmbededUrlAnalysis',
-    'AFApkIntentFilterAnalysis'
+    'AFApkIntentFilterAnalysis',
     'AFApkReceiverAnalysis',
-    'AFApkRequestedPermissionAnalysis'
+    'AFApkRequestedPermissionAnalysis',
     'AFApkSensitiveApiCallAnalysis',
-    'AFApkSensorAnalysis'
+    'AFApkSensorAnalysis',
     'AFApkServiceAnalysis',
-    'AFApkSuspiciousApiCallAnalysis'
+    'AFApkSuspiciousApiCallAnalysis',
     'AFApkSuspiciousFileAnalysis',
-    'AFApkSuspiciousStringAnalysis'
+    'AFApkSuspiciousStringAnalysis',
     'AFBehaviorTypeAnalysis',
-    'AFClientError'
+    'AFClientError',
     'AFConnectionActivity',
-    'AFDnsActivity'
+    'AFDnsActivity',
     'AFFileActivity',
-    'AFHttpActivity'
+    'AFHttpActivity',
     'AFJavaApiActivity',
-    'AFMutexActivity'
+    'AFMutexActivity',
     'AFProcessActivity',
-    'AFRegistryActivity'
+    'AFRegistryActivity',
     'AFSample',
     'AFSampleAbsent',
-    'AFSampleFactory'
-    'AFServerError'
+    'AFSampleFactory',
+    'AFServerError',
     'AFServiceActivity',
-    'AFSession'
+    'AFSession',
     'AFTag',
-    'AFTagAbsent'
+    'AFTagAbsent',
     'AFTagCache',
-    'AFTagFactory'
+    'AFTagFactory',
     'AFTagReference',
-    'AFUserAgentFragments'
-    'AutoFocusAPI'
+    'AFUserAgentFragments',
+    'AutoFocusAPI',
     'AutoFocusAnalysis',
     'AutoFocusObject',
  ]
