@@ -1375,19 +1375,19 @@ class AutoFocusAnalysis(AutoFocusObject):
 #apk_defined_activity
 class AFApkActivityAnalysis(AutoFocusAnalysis):
 
-    def __init__(self, platform, activity):#, benign, malware, grayware):
+    def __init__(self, platform, activity, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
 
-#        #: int: The number of samples regarded as benign related to this analysis
-#        self.benign_count = int(benign)
-#
-#        #: int: The number of samples regarded as malware related to this analysis
-#        self.malware_count = int(malware)
-#
-#        #: int: The number of samples regarded as grayware related to this analysis
-#        self.grayware_count = int(grayware)
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
 
         #: str: A string representing the activity observered
         self.activity = activity
@@ -1397,8 +1397,8 @@ class AFApkActivityAnalysis(AutoFocusAnalysis):
 
         line_parts = activity_data['line'].split(" , ")
         (activity) = line_parts[0]
-        #(benign_c, malware_c, grayware_c) = (activity_data.get('b', 0), activity_data.get('m', 0), activity_data.get('g', 0))
-        return cls(platform, activity)
+        (benign_c, malware_c, grayware_c) = (activity_data.get('b', 0), activity_data.get('m', 0), activity_data.get('g', 0))
+        return cls(platform, activity, benign_c, malware_c, grayware_c)
 
 #apk_defined_intent_filter
 class AFApkIntentFilterAnalysis(AutoFocusAnalysis):
@@ -1430,11 +1430,59 @@ class AFApkIntentFilterAnalysis(AutoFocusAnalysis):
 
 #apk_defined_receiver
 class AFApkReceiverAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, receiver, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the receiver used
+        self.receiver = receiver
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, rcv_data):
+
+        line_parts = rcv_data['line'].split(" , ")
+        (receiver) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (rcv_data.get('b', 0), rcv_data.get('m', 0), rcv_data.get('g', 0))
+        return cls(platform, receiver, benign_c, malware_c, grayware_c)
 
 #apk_defined_sensor
 class AFApkSensorAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, sensor, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the sensor used
+        self.sensor = sensor
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (sensor) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, sensor, benign_c, malware_c, grayware_c)
 
 #apk_defined_service
 class AFApkServiceAnalysis(AutoFocusAnalysis):
@@ -1467,7 +1515,7 @@ class AFApkServiceAnalysis(AutoFocusAnalysis):
 #apk_embeded_url
 class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
 
-    def __init__(self, platform, url, save_location, benign, malware, grayware):
+    def __init__(self, platform, url, disasm_file_path, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -1484,16 +1532,16 @@ class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
         #: str: The URL accessed by the device
         self.url = url
 
-        #: str: The location that the URL's content was saved on the device
-        self.save_location = save_location
+        #: str: the dissasembled file path
+        self._disasm_file_path = disasm_file_path
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, perm_data):
 
         line_parts = perm_data['line'].split(" , ")
-        (url, save_location) = line_parts[0:2]
+        (url, disasm_file_path) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (perm_data.get('b', 0), perm_data.get('m', 0), perm_data.get('g', 0))
-        return cls(platform, url, save_location, benign_c, malware_c, grayware_c)
+        return cls(platform, url, disasm_file_path, benign_c, malware_c, grayware_c)
 
 #apk_requested_permission
 class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
@@ -1526,7 +1574,7 @@ class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
 #apk_sensitive_api_call
 class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
 
-    def __init__(self, platform, class_, method, args, benign, malware, grayware):
+    def __init__(self, platform, class_, method, disasm_file_path, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -1546,8 +1594,8 @@ class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
         #: str: The name of the method accessed by the APK
         self.method = method
 
-        #: Optional(List[str]): The args passed to the method
-        self.args = args
+        #: Optional(str): the dissasembled file path
+        self._disasm_file_path = disasm_file_path
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, api_data):
@@ -1555,16 +1603,16 @@ class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
         line_parts = api_data['line'].split(" , ")
         (class_, method) = line_parts[0].split(";->")
         class_ = class_.replace("/", ".")
-        args = []
+        disasm_file_path = None
         if len(line_parts) > 1:
-            args = line_parts[1:]
+            disasm_file_path = line_parts[1]
         (benign_c, malware_c, grayware_c) = (api_data.get('b', 0), api_data.get('m', 0), api_data.get('g', 0))
-        return cls(platform, class_, method, args, benign_c, malware_c, grayware_c)
+        return cls(platform, class_, method, disasm_file_path, benign_c, malware_c, grayware_c)
 
 #apk_suspicious_api_call
 class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
 
-    def __init__(self, platform, class_, method, args, benign, malware, grayware):
+    def __init__(self, platform, class_, method, disasm_file_path, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -1584,8 +1632,8 @@ class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
         #: str: The name of the method accessed by the APK
         self.method = method
 
-        #: Optional(List[str]): The args passed to the method
-        self.args = args
+        #: Optional(str): the dissasembled file path
+        self._disasm_file_path = disasm_file_path
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, api_data):
@@ -1593,19 +1641,73 @@ class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
         line_parts = api_data['line'].split(" , ")
         (class_, method) = line_parts[0].split(";->")
         class_ = class_.replace("/", ".")
-        args = []
+        disasm_file_path = None
         if len(line_parts) > 1:
-            args = line_parts[1:]
+            disasm_file_path = line_parts[1]
         (benign_c, malware_c, grayware_c) = (api_data.get('b', 0), api_data.get('m', 0), api_data.get('g', 0))
-        return cls(platform, class_, method, args, benign_c, malware_c, grayware_c)
+        return cls(platform, class_, method, disasm_file_path, benign_c, malware_c, grayware_c)
 
 #apk_suspicious_file
 class AFApkSuspiciousFileAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, file_path, file_type, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The path to the file on the file system
+        self.file_path = file_path
+
+        #: str: the type of file that was identified
+        self.file_type = file_type
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, file_data):
+
+        line_parts = file_data['line'].split(" , ")
+        (file_path, file_type) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
+        return cls(platform, file_path, file_type, benign_c, malware_c, grayware_c)
 
 #apk_suspicious_string
 class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
-    pass
+
+    def __init__(self, platform, string, file_name, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The string that was identified as suspicious
+        self.string = string
+
+        #: str: The name of the file the suspicious string was found in
+        self.file_name = file_name
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, string_data):
+
+        line_parts = string_data['line'].split(" , ")
+        (string, file_name) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (string_data.get('b', 0), string_data.get('m', 0), string_data.get('g', 0))
+        return cls(platform, string, file_name, benign_c, malware_c, grayware_c)
 
 #behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
@@ -2146,32 +2248,4 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-    query = '{"operator":"all","children":[{"field":"alias.domain","operator":"contains","value":"markovqwesta.com"}]}'
-
-    for session in AFSession.scan(query):
-        pass
-    sys.exit()
-    #query = '{"operator":"all","children":[{"field":"sample.sha256","operator":"is","value":"cde2540ac97b40f5f580e9ce8a0f4c66da074d6a25fac3b0e9771b45f3478ff0"}]}'
-
-    #for session in AFSession.search(query):
-    #    print "File ULR: {}".format(session.file_url)
-    #query = r'{"operator":"all","children":[{"field":"sample.malware","operator":"is","value":1}]}'
-#    query = r'{"operator":"all","children":[{"field":"sample.tasks.file","operator":"contains","value":"at1.job"}]}'
-
-    AFSample.get("9382f2e4e0b918bdbb59e658cbdc0b6453ee6d8b5658d45eb770191649f6fb76").get_analyses()
-
-    query = u'{"operator":"all","children":[{"field":"session.device.serial","operator":"is","value":"001701008415"}]}'
-
-    for sample in AFSample.search(query):
-        print sample.md5
-
-    print "All done!"
-
-    sys.exit()
-
-    i = 0
-    for sample in AFSample.scan(query):
-        i += 0
-
-    print "Got {} samples".format(i)
-
+    pass
