@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import requests, json, sys, time, re, os
+import requests, json, sys, time, re, os, math
 from pprint import pprint
 from datetime import datetime
 
@@ -231,30 +231,52 @@ class AutoFocusAPI(object):
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
+        total_sleep_time = 0
+
+        i = 0
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
             resp = cls._api_request(request_url)
             resp_data = resp.json()
 
-            # We should always have a 'total' and an 'af_complete_percentage'
-            if 'total' not in resp_data or 'af_complete_percentage' not in resp_data:
+            # We should always have 'af_complete_percentage' in resp_data.
+            # In the case that we do have it, and the value is not 0 perecent complete, then we should also have
+            # 'total' in the resp_data
+            if 'af_complete_percentage' not in resp_data or \
+                    (resp_data['af_complete_percentage'] and 'total' not in resp_data):
                 raise AFServerError("Server sent malformed response", resp)
 
             #prev_resp_data = resp_data
 
             actual_res_count += len(resp_data.get('hits', []))
 
-            # If we've gotten no hits and the percentage is 100
+            if 'hits' in resp_data:
+                yield resp_data
+
+            # If we've gotten to 100%, it's time to stop iteration
             if resp_data['af_complete_percentage'] == 100:
+
                 if actual_res_count != resp_data['total']:
                     # Sanity check
                     raise AFServerError("Expecting {} results, but actually got {} while scanning. AFCOOKIE: {}"
                                             .format(resp_data['total'], actual_res_count, af_cookie))
                 raise StopIteration()
 
-            if 'hits' in resp_data:
-                yield resp_data
+            i += 1
+
+            # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
+            # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
+            # raise an exception
+            sleep_time = .1
+            sleep_time += sleep_time * math.floor(i / 3)
+
+            total_sleep_time += sleep_time
+
+            if total_sleep_time >= 600:
+                break
+
+            time.sleep(sleep_time)
 
     @classmethod
     def _api_search_request(cls, path,  post_data):
@@ -2248,4 +2270,6 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+
     pass
+
