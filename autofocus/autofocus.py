@@ -1003,12 +1003,13 @@ class AFSample(AutoFocusObject):
 
         known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",\
                             "virustotal_hit", "source_label", "finish_date", "tag", "digital_signer", "update_date",\
-                            "ssdeep", "imphash")
+                            "ssdeep", "imphash", "ispublic")
 
         # TODO: remove this when the library matures, needless checking once we sort out attributes
         for k, v in kwargs.items():
             if k not in known_attributes:
-                sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
+                pass
+                #sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
 
         #: str: md5 sum of the sample
         self.md5 = kwargs['md5']
@@ -1024,6 +1025,13 @@ class AFSample(AutoFocusObject):
 
         #: Optional[str]: imphash sum of the sample
         self.imphash = kwargs.get('imphash', None)
+
+        #:Optional[bool]: whether the sample is public or not. If is unknown, it will be None
+        self.is_public = kwargs.get("ispublic", None)
+        if self.is_public:
+            self.is_public = True
+        elif self.is_public is not None:
+            self.is_public = False
 
         #: str: The file type of the sample
         self.file_type = kwargs['filetype']
@@ -1842,15 +1850,17 @@ class AFConnectionActivity(AutoFocusAnalysis):
             elif action == "listening":
                 action = 'listen'
             else:
+                pass
                 #TODO remove this and throw an exception when we are confident about our normalization
-                sys.stderr.write("Unknown connection action {} -- tell BSMALL\n".format(action))
+                #sys.stderr.write("Unknown connection action {} -- tell BSMALL\n".format(action))
 
         if protocol:
             protocol = protocol.lower()
 
         #TODO remove this and throw an exception when we are confident about our normalization
         if protocol and protocol not in ('tcp', 'udp', 'icmp', 'gre'):
-            sys.stderr.write("Unknown protocol {} -- tell BSMALL\n".format(protocol))
+            pass
+            #sys.stderr.write("Unknown protocol {} -- tell BSMALL\n".format(protocol))
 
         ca = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c, \
                  malware_c, grayware_c)
@@ -2270,17 +2280,4 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-    query = r'{"operator":"all","children":[{"field":"alias.domain","operator":"contains","value":"markovqwesta.com"}]}'
-
-
-    oi = 0
-    while oi < 20:
-        start_time = time.time()
-
-        i = 0
-        for session in AFSession.search(query):
-            i+=1
-        print "Got {} sessions in {} seconds".format(i, time.time() - start_time)
-
-        oi += 1
+    pass
