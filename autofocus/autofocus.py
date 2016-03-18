@@ -54,6 +54,37 @@ _class_analysis_map = {}
 
 _base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 
+class GrauduatingSleepError(Exception):
+    pass
+
+class GraduatingSleep(object):
+
+    init_sleep_duration = .1
+    max_sleep_duration = 600
+
+    def __init__(self):
+
+        self.counter = 0
+
+        self.total_sleep_time = 0
+
+    def sleep(self):
+
+        # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
+        # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
+        # raise an exception
+        sleep_time = self.__class__.init_sleep_duration
+        sleep_time += sleep_time * math.floor(self.counter / 3)
+
+        self.total_sleep_time += sleep_time
+
+        if self.total_sleep_time >= self.__class__.max_sleep_duration:
+            raise GrauduatingSleepError()
+
+        time.sleep(sleep_time)
+
+        self.counter += 1
+
 class NotLoaded(object):
     """
     NotLoaded is a class used internally by various classes in this module for handling when an attribute needs to be
@@ -191,12 +222,10 @@ class AutoFocusAPI(object):
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
-        i = 0
+        sleeper = GraduatingSleep()
 
         # We'll poll the result bucket until we get a complete query and then we'll return the count
         while True:
-
-            i += 1
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
@@ -212,13 +241,10 @@ class AutoFocusAPI(object):
             if resp_data.get('af_complete_percentage', 100) == 100:
                 return resp_data['total']
 
-            if i > 100:
-                err_str = "Polled 100 times for results on {} in {} secs. Server reports {} percent complete.".format(
-                    af_cookie,
-                    time.time() - init_query_time,
-                    resp_data.get("af_complete_percentage", None)
-                )
-                raise AFServerError(err_str, resp_data)
+            try:
+                sleeper.sleep()
+            except GrauduatingSleepError:
+                raise AFServerError("Timed out while pulling results", resp)
 
     @classmethod
     def _api_scan_request(cls, path, post_data):
@@ -231,9 +257,8 @@ class AutoFocusAPI(object):
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
-        total_sleep_time = 0
+        sleeper = GraduatingSleep()
 
-        i = 0
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
@@ -263,20 +288,10 @@ class AutoFocusAPI(object):
                                             .format(resp_data['total'], actual_res_count, af_cookie), resp)
                 raise StopIteration()
 
-            i += 1
-
-            # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
-            # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
-            # raise an exception
-            sleep_time = .1
-            sleep_time += sleep_time * math.floor(i / 3)
-
-            total_sleep_time += sleep_time
-
-            if total_sleep_time >= 600:
+            try:
+                sleeper.sleep()
+            except GrauduatingSleepError:
                 raise AFServerError("Timed out while pulling results", resp)
-
-            time.sleep(sleep_time)
 
     @classmethod
     def _api_search_request(cls, path,  post_data):
@@ -303,6 +318,9 @@ class AutoFocusAPI(object):
 
             resp_data = {}
             prev_resp_data = {}
+
+            sleeper = GraduatingSleep()
+
             i = 0
             while True:
 
@@ -330,7 +348,10 @@ class AutoFocusAPI(object):
 
                 prev_resp_data = resp_data
 
-                continue
+                try:
+                    sleeper.sleep()
+                except GrauduatingSleepError:
+                    raise AFServerError("Timed out while pulling results", resp)
 
             if not resp_data.get('hits', None):
                 raise StopIteration()
@@ -1389,6 +1410,8 @@ class AFSample(AutoFocusObject):
                         analyses[-1]._raw_line = data['line']
                     except _InvalidAnalysisData:
                         pass
+                    except:
+                        pass
 
         return analyses
 
@@ -1807,6 +1830,7 @@ class AFConnectionActivity(AutoFocusAnalysis):
      - <protocol>-listening , <src_port>
      - <protocol>-listening , <ApiFunctionName> , <src_port>
      - <process name>, <proto>-listening, RecvFrom, <Integer>
+     - <process name>, <proto>-listening, Recv, <Integer>
     """
     @classmethod
     def _parse_auto_focus_response(cls, platform, conn_data):
@@ -1816,7 +1840,7 @@ class AFConnectionActivity(AutoFocusAnalysis):
 
         if len(line_parts) >= 4:
 
-            if "RecvFrom" in line_parts and [v for v in line_parts if "-listening" in v]:
+            if "Recv" in line_parts and [v for v in line_parts if "-listening" in v]:
                 raise _InvalidAnalysisData
 
             if len(line_parts) > 4:
@@ -2087,6 +2111,9 @@ class AFApiActivity(AutoFocusAnalysis):
     @classmethod
     def _parse_auto_focus_response(cls, platform, misc_data):
 
+        if not misc_data['line']:
+            raise _InvalidAnalysisData()
+
         line_parts =  misc_data['line'].split(" , ")
         (process_name, function_name) = line_parts[0:2]
         func_args = line_parts[2:]
@@ -2280,4 +2307,18 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+
+    query = """
+    {"operator":"all","children":[
+        {"field":"sample.sha256","operator":"is","value":"d5e156fc607471900f54b7fc6ee23e7706e533afa785dc19423d123a95f148ba"}
+    ]}
+    """
+
+    # * AFSample.search is a generator, so you have to iterate over the results, which is required since it's common
+    #   to search for large datasets
+    # * The client library handles all paging for you, so you just need to pose a question
+    #   and parse the results
+    for sample in AFSample.search(query):
+        # sample is an instance of AFSample
+        sample.get_analyses()
     pass
