@@ -31,7 +31,7 @@ from autofocus import AFTagAbsent
 from autofocus import AFTagCache
 from autofocus import AFTagFactory
 from autofocus import AFTagReference
-from autofocus import AFUserAgentFragments
+from autofocus import AFUserAgentFragment
 from autofocus import AutoFocusAPI
 from autofocus import AutoFocusAnalysis
 from autofocus import AutoFocusObject
@@ -71,7 +71,7 @@ __all__ = [
     'AFTagCache',
     'AFTagFactory',
     'AFTagReference',
-    'AFUserAgentFragments',
+    'AFUserAgentFragment',
     'AutoFocusAPI',
     'AutoFocusAnalysis',
     'AutoFocusObject',

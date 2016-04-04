@@ -24,7 +24,7 @@ __all__ = [
     'AFJavaApiActivity','AFMutexActivity','AFProcessActivity','AFRegistryActivity'
     'AFSample','AFSampleFactory','AFSampleAbsent','AFServerError'
     'AFServiceActivity','AFSession','AFTag','AFTagCache'
-    'AFTagFactory','AFTagReference','AFUserAgentFragments','AutoFocusAnalysis'
+    'AFTagFactory','AFTagReference','AFUserAgentFragment','AutoFocusAnalysis'
     'AutoFocusAPI','AutoFocusObject'
  ]
 
@@ -2261,12 +2261,21 @@ class AFServiceActivity(AutoFocusAnalysis):
         return ma
 
 #user_agent
-class AFUserAgentFragments(AutoFocusAnalysis):
+class AFUserAgentFragment(AutoFocusAnalysis):
 
-    def __init__(self, platform, fragment):
+    def __init__(self, platform, fragment, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
 
         #: str: A string representing a fragment of the user agent (stripping fluff, ie "Mozilla/5.0")
         self.fragment = fragment
@@ -2274,7 +2283,9 @@ class AFUserAgentFragments(AutoFocusAnalysis):
     @classmethod
     def _parse_auto_focus_response(cls, platform, ua_data):
 
-        ba = cls(platform, ua_data['line'])
+        (benign_c, malware_c, grayware_c) = (ua_data.get('b', 0), ua_data.get('m', 0), ua_data.get('g', 0))
+
+        ba = cls(platform, ua_data['line'], benign_c, malware_c, grayware_c)
 
         return ba
 
@@ -2300,25 +2311,12 @@ _analysis_class_map['misc'] = AFApiActivity
 _analysis_class_map['process'] = AFProcessActivity
 _analysis_class_map['registry'] = AFRegistryActivity
 _analysis_class_map['service'] = AFServiceActivity
-_analysis_class_map['user_agent'] = AFUserAgentFragments
+_analysis_class_map['user_agent'] = AFUserAgentFragment
 
 for k,v in _analysis_class_map.items():
     _class_analysis_map[v] = k
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-    query = """
-    {"operator":"all","children":[
-        {"field":"sample.sha256","operator":"is","value":"d5e156fc607471900f54b7fc6ee23e7706e533afa785dc19423d123a95f148ba"}
-    ]}
-    """
-
-    # * AFSample.search is a generator, so you have to iterate over the results, which is required since it's common
-    #   to search for large datasets
-    # * The client library handles all paging for you, so you just need to pose a question
-    #   and parse the results
-    for sample in AFSample.search(query):
-        # sample is an instance of AFSample
-        sample.get_analyses()
     pass
+
