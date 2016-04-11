@@ -235,6 +235,10 @@ class AutoFocusAPI(object):
                 resp = cls._api_request(request_url)
                 resp_data = resp.json()
             except AFClientError as e:
+                e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
+                raise e
+            except AFServerError as e:
+                e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
                 raise e
 
             # If we've gotten our bucket size worth of data, or the query has complete
@@ -244,7 +248,7 @@ class AutoFocusAPI(object):
             try:
                 sleeper.sleep()
             except GrauduatingSleepError:
-                raise AFServerError("Timed out while pulling results", resp)
+                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
 
     @classmethod
     def _api_scan_request(cls, path, post_data):
@@ -270,7 +274,7 @@ class AutoFocusAPI(object):
             # 'total' in the resp_data
             if 'af_complete_percentage' not in resp_data or \
                     (resp_data['af_complete_percentage'] and 'total' not in resp_data):
-                raise AFServerError("Server sent malformed response", resp)
+                raise AFServerError("AF_COOKIE - {}\nServer sent malformed response".format(af_cookie), resp)
 
             #prev_resp_data = resp_data
 
@@ -284,14 +288,14 @@ class AutoFocusAPI(object):
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
-                    raise AFServerError("Expecting {} results, but actually got {} while scanning. AFCOOKIE: {}"
-                                            .format(resp_data['total'], actual_res_count, af_cookie), resp)
+                    raise AFServerError("AF_COOKIE - {}\nExpecting {} results, but actually got {} while scanning"
+                                            .format(af_cookie, resp_data['total'], actual_res_count), resp)
                 raise StopIteration()
 
             try:
                 sleeper.sleep()
             except GrauduatingSleepError:
-                raise AFServerError("Timed out while pulling results", resp)
+                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
 
     @classmethod
     def _api_search_request(cls, path,  post_data):
@@ -339,7 +343,11 @@ class AutoFocusAPI(object):
                         raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
                                         % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
                     else:
+                        e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
                         raise e
+                except AFServerError as e:
+                    e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
+                    raise e
 
                 # If we've gotten our bucket size worth of data, or the query has complete
                 if len(resp_data.get('hits', [])) == post_data['size'] \
@@ -351,7 +359,7 @@ class AutoFocusAPI(object):
                 try:
                     sleeper.sleep()
                 except GrauduatingSleepError:
-                    raise AFServerError("Timed out while pulling results", resp)
+                    raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
 
             if not resp_data.get('hits', None):
                 raise StopIteration()
