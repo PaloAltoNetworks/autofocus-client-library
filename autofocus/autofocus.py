@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-import requests, json, sys, time, re, os, math
+import requests, json, sys, time, re, os, math, decimal
 from pprint import pprint
-from datetime import datetime
+from datetime import datetime, date
 
 AF_APIKEY = None
 
@@ -160,7 +160,68 @@ class _InvalidAnalysisData(Exception):
     pass
 
 class AutoFocusObject(object):
-    pass
+    def serialize(self, depth=1, include_all=True):
+        """ Converts object to a dictionary representation. Depending on combination
+            of depth and include_all parameters, performance on serialization may suffer,
+            especially if trying to serialize many objects. Using a lower depth and/or setting
+            include_all to False will reduce the number of API calls made during serialization
+
+            Args:
+                depth: how many nested objects to include in dictionary
+                include_all: whether or not to include lazy loaded attributes.
+
+            Returns:
+                dictionary containing attributes and values
+        """
+        serialized = {}
+
+        # stop if we hit specified depth
+        if depth == 0:
+            return None
+
+        # decide if we should include or not include attributes based on lazy loading
+        blacklist = []
+        for k in self.__dict__:
+            if include_all:
+                # lazy load everything and include it
+                getattr(self, k)
+            else:
+                # don't include lazy loaded attributes
+                raw_value = super(AutoFocusObject, self).__getattribute__(k)
+                if isinstance(raw_value, NotLoaded):
+                    blacklist.append(k)
+
+        # serialize
+        for k, v in self.__dict__.items():
+
+            # ignore private and blacklisted
+            if k.startswith("_") or k in blacklist:
+                continue
+
+            if isinstance(v, list):
+                serialized_array = []
+                for item in v:
+                    if isinstance(item, AutoFocusObject):
+                        if depth > 1:
+                            serialized_array.append(item.serialize(depth=depth-1))
+                serialized[k] = serialized_array
+
+            elif isinstance(v, AutoFocusObject):
+                # only encode hard coded relations (via __serializable_relations__)
+                # to prevent huge data returns and infinite loops
+                if depth > 1:
+                    serialized[k] = v.serialize(depth=depth-1)
+            else:
+                if isinstance(v, datetime):
+                    serialized[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+                elif isinstance(v, date):
+                    serialized[k] = v.strftime("%Y-%m-%d")
+                elif isinstance(v, decimal.Decimal):
+                    serialized[k] = "%.1f" % v
+                else:
+                    serialized[k] = v
+
+        return serialized
 
 class AutoFocusAPI(object):
     """
