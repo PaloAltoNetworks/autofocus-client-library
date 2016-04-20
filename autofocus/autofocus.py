@@ -699,7 +699,7 @@ class AFTagFactory(AutoFocusAPI):
             try:
                 resp = cls._api_request("/tag/" + tag_name).json()
             except AFClientError as e:
-                if e.response.code == 404:
+                if e.response.status_code == 404:
                     raise AFTagAbsent("No such tag exists")
                 else:
                     raise e
