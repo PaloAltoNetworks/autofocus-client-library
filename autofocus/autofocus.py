@@ -212,10 +212,8 @@ class AutoFocusObject(object):
                 if depth > 1:
                     serialized[k] = v.serialize(depth=depth-1)
             else:
-                if isinstance(v, datetime):
-                    serialized[k] = v.strftime("%Y-%m-%d %H:%M:%S")
-                elif isinstance(v, date):
-                    serialized[k] = v.strftime("%Y-%m-%d")
+                if isinstance(v, (datetime, date)):
+                    serialized[k] = v.isoformat()
                 elif isinstance(v, decimal.Decimal):
                     serialized[k] = "%.1f" % v
                 else:
