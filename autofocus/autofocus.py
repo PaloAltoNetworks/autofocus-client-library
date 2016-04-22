@@ -204,6 +204,12 @@ class AutoFocusObject(object):
                     if isinstance(item, AutoFocusObject):
                         if depth > 1:
                             serialized_array.append(item.serialize(depth=depth-1))
+                    elif isinstance(item, (datetime, date)):
+                        serialized_array.append(item.isoformat())
+                    elif isinstance(item, decimal.Decimal):
+                        serialized_array.append("%.1f" % item)
+                    elif isinstance(item, (str, int, dict)):
+                        serialized_array.append(item)
                 serialized[k] = serialized_array
 
             elif isinstance(v, AutoFocusObject):
