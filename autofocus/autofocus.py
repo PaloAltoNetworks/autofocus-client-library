@@ -1033,7 +1033,7 @@ class AFSampleFactory(AutoFocusAPI):
                 yield AFSample(**res['_source'])
             except AutoFocusException as e:
                 raise e
-            except:
+            except Exception as e:
                 # HMMM bug in sample data
                 pass
 
