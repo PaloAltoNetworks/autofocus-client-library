@@ -694,7 +694,7 @@ class AFTagFactory(AutoFocusAPI):
             resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
-                results.append(AFTag(**tag_data))
+                results.append(AFTagCache.add(AFTag(**tag_data)))
 
         return results
 
