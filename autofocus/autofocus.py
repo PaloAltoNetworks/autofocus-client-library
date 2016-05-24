@@ -4,6 +4,7 @@ from pprint import pprint
 from datetime import datetime, date
 
 AF_APIKEY = None
+SHOW_WARNINGS = False
 
 try:
     import ConfigParser
@@ -11,6 +12,11 @@ try:
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
     parser.read(os.path.expanduser(conf_path))
     AF_APIKEY = parser.get("autofocus", "apikey")
+    try:
+        ignore_warnings = parser.getboolean("autofocus", "ignore_warnings")
+        SHOW_WARNINGS = False if ignore_warnings else True
+    except:
+        SHOW_WARNINGS = False
 except:
     sys.stderr.write("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key manually " +
                      "before utilizing the API\n")
@@ -37,15 +43,6 @@ __all__ = [
 #   not balk. The result set will be empty, naturally.
 
 _USER_AGENT =  "GSRT AutoFocus Client Library/1.0"
-
-ALL_ANALYSIS_SECTIONS = (
-    'apk_defined_activity', 'apk_defined_intent_filter', 'apk_defined_receiver',
-    'apk_defined_sensor', 'apk_defined_service', 'apk_embeded_url',
-    'apk_requested_permission', 'apk_sensitive_api_call', 'apk_suspicious_api_call',
-    'apk_suspicious_file', 'apk_suspicious_string', 'behavior_type', 'connection',
-    'dns', 'file', 'http', 'japi', 'mutex', 'misc', 'process', 'registry','service',
-    'user_agent'
-)
 
 # A dictionaries for mapping AutoFocus Analysis Response objects
 # to their corresponding normalization classes and vice-versa
@@ -1448,21 +1445,22 @@ class AFSample(AutoFocusObject):
 
         mapped_sections = []
 
-        if not sections:
-            sections = ALL_ANALYSIS_SECTIONS
+        post_data = { "platforms" : platforms }
 
-        if not (type(sections) is list or type(sections) is tuple):
-            sections = [sections]
+        if sections:
 
-        for section in sections:
-            if type(section) is not str:
-                mapped_sections.append(_class_analysis_map[section])
-            else:
-                mapped_sections.append(section)
+            if not (type(sections) is list or type(sections) is tuple):
+                sections = [sections]
 
-        resp_data = AutoFocusAPI._api_request(
-            "/sample/" + self.sha256 + "/analysis", \
-            post_data = { "sections" : mapped_sections, "platforms" : platforms }).json()
+            for section in sections:
+                if type(section) is not str:
+                    mapped_sections.append(_class_analysis_map[section])
+                else:
+                    mapped_sections.append(section)
+
+                post_data["sections"] =  mapped_sections
+
+        resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", post_data = post_data).json()
 
         analyses = []
 
@@ -1470,8 +1468,10 @@ class AFSample(AutoFocusObject):
             af_analysis_class = _analysis_class_map.get(section, None)
 
             if not af_analysis_class:
-                raise AFClientError("Was expecting a known section in analysis_class_map, got {} instead"
-                                    .format(section))
+                if SHOW_WARNINGS:
+                    sys.stderr.write("WARNING: Was expecting a known section in analysis_class_map, got {} instead\n"
+                                     .format(section))
+                    continue
 
             #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
             for platform in resp_data[section].keys():
@@ -1834,6 +1834,30 @@ class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
         (string, file_name) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (string_data.get('b', 0), string_data.get('m', 0), string_data.get('g', 0))
         return cls(platform, string, file_name, benign_c, malware_c, grayware_c)
+
+#behavior
+# {u'line': u'informational , 0.1 , A process running on the system may start additional processes to perform actions in the background. This behavior is common to legitimate software as well as malware. , process , 6 , Started a process'}
+class AFBehaviorAnalysis(AutoFocusAnalysis):
+
+    def __init__(self, platform, risk, description):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: str: A string representing the risk of the behavior
+        self.risk = risk
+
+        #: str: A string describing the behavior
+        self.description = description
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, conn_data):
+
+        (risk, description) = conn_data['line'].split(" , ")[0,2]
+
+        ba = cls(platform, risk, description)
+
+        return ba
 
 #behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
@@ -2373,6 +2397,7 @@ _analysis_class_map['apk_sensitive_api_call'] = AFApkSensitiveApiCallAnalysis
 _analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
 _analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
 _analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
+_analysis_class_map['behavior'] = AFBehaviorAnalysis
 _analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis
 _analysis_class_map['connection'] = AFConnectionActivity
 _analysis_class_map['dns'] = AFDnsActivity
@@ -2391,5 +2416,6 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+
     pass
 
