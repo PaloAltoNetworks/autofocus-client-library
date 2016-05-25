@@ -1471,7 +1471,7 @@ class AFSample(AutoFocusObject):
                 if SHOW_WARNINGS:
                     sys.stderr.write("WARNING: Was expecting a known section in analysis_class_map, got {} instead\n"
                                      .format(section))
-                    continue
+                continue
 
             #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
             for platform in resp_data[section].keys():
@@ -1851,9 +1851,10 @@ class AFBehaviorAnalysis(AutoFocusAnalysis):
         self.description = description
 
     @classmethod
-    def _parse_auto_focus_response(cls, platform, conn_data):
+    def _parse_auto_focus_response(cls, platform, behavior_data):
 
-        (risk, description) = conn_data['line'].split(" , ")[0,2]
+        line_parts = behavior_data['line'].split(" , ")
+        (risk, description) = [line_parts[i] for i in [0,2]]
 
         ba = cls(platform, risk, description)
 
@@ -2416,6 +2417,5 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
     pass
 
