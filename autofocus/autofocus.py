@@ -509,16 +509,39 @@ class AFTag(AutoFocusObject):
         #: int: the number of samples matching the tag
         self.count = kwargs["count"]
 
-        kwargs['lasthit'] = kwargs.get('lasthit', None)
-
-        # Preserve the raw lasthit in a private variable
-        self._last_hit = kwargs['lasthit']
-
-        if kwargs['lasthit']:
-            kwargs['lasthit'] = datetime.strptime(kwargs['lasthit'], '%Y-%m-%d %H:%M:%S')
+        last_hit = kwargs.get('lasthit', None)
+        if last_hit:
+            last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
 
         #: Optional[datetime]: the last time there was activity witnessed for the tag
-        self.last_hit = kwargs["lasthit"]
+        self.last_hit = last_hit
+
+        created = kwargs.get('created_at', None)
+        if created:
+            try:
+                created = datetime.strptime(created, '%Y-%m-%d %H:%M:%S')
+            except:
+                if SHOW_WARNINGS:
+                    sys.stderr.write("WARNING: Couldn't parse created time on tag {}".format(self.public_name))
+                created = None
+
+        #: Optional[datetime]: the datetime the tag was created
+        self.created = created
+
+        updated = kwargs.get('updated_at', None)
+        if updated:
+            try:
+                updated = datetime.strptime(updated, '%Y-%m-%d %H:%M:%S')
+            except:
+                if SHOW_WARNINGS:
+                    sys.stderr.write("WARNING: Couldn't parse updated time on tag {}".format(self.public_name))
+                updated = None
+
+        #: Optional[datetime]: the datetime the tag was updated
+        self.updated = updated
+
+        #: Optional[str]: the owner of the tag
+        self.owner = kwargs.get("owner", None)
 
         #: str: the authors description of the tag
         self.description = kwargs["description"]
@@ -535,11 +558,11 @@ class AFTag(AutoFocusObject):
         #: int: The definition scoe id for the tag
         self.scope_id = kwargs["tag_definition_scope_id"]
 
-        #: str: The class for the tag. Need to break convention for reserved words in python
-        self.tag_class = kwargs.get("tag_class", NotLoaded())
+        #: Optional[str]: The class for the tag. Need to break convention for reserved words in python
+        self.tag_class = kwargs.get("tag_class", None)
 
-        #: int: The class id for the tag. Need to break convention for reserved words in python
-        self.tag_class_id = kwargs["tag_class_id"]
+        #: Optional[int]: The class id for the tag. Need to break convention for reserved words in python
+        self.tag_class_id = kwargs.get("tag_class_id", None)
 
         #: Optiona[str]: The name of the customer who wrote the tag. Will be None if not recorded or you don't have permission to view it
         self.customer_name = kwargs.get("customer_name", None)
@@ -572,7 +595,7 @@ class AFTag(AutoFocusObject):
 
         # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id', 'tag_class') and type(value) is NotLoaded:
+        if attr in ('comments', 'references', 'review', 'support_id') and type(value) is NotLoaded:
 
             # Reloading the data via the get method
             self = AFTag.get(self.public_name)
@@ -582,7 +605,8 @@ class AFTag(AutoFocusObject):
             # TODO: Remove this once the objects returned by the REST service are made consistent.
             if type(value) is NotLoaded:
                 value = None
-                sys.stderr.write("Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
+                if SHOW_WARNINGS:
+                    sys.stderr.write("WARNING: Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
 
         return value
 
@@ -706,14 +730,15 @@ class AFTagFactory(AutoFocusAPI):
         if not tag:
 
             try:
-                resp = cls._api_request("/tag/" + tag_name).json()
+                resp = cls._api_request("/tag/" + tag_name)
+                resp_data = resp.json()
             except AFClientError as e:
                 if e.response.status_code == 404:
                     raise AFTagAbsent("No such tag exists")
                 else:
                     raise e
 
-            tag = AFTagCache.add(AFTag(**resp['tag']))
+            tag = AFTagCache.add(AFTag(**resp_data['tag']))
 
         return tag
 
