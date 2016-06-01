@@ -21,19 +21,6 @@ except:
     sys.stderr.write("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key manually " +
                      "before utilizing the API\n")
 
-__all__ = [
-    'AFApiActivity','AFApkActivityAnalysis','AFApkEmbededUrlAnalysis','AFApkIntentFilterAnalysis'
-    'AFApkReceiverAnalysis','AFApkRequestedPermissionAnalysis','AFApkSensitiveApiCallAnalysis',
-    'AFApkSensorAnalysis','AFApkServiceAnalysis','AFApkSuspiciousApiCallAnalysis'
-    'AFApkSuspiciousFileAnalysis','AFApkSuspiciousStringAnalysis', 'AFBehaviorTypeAnalysis','AFClientError'
-    'AFConnectionActivity','AFDnsActivity','AFFileActivity','AFHttpActivity'
-    'AFJavaApiActivity','AFMutexActivity','AFProcessActivity','AFRegistryActivity'
-    'AFSample','AFSampleFactory','AFSampleAbsent','AFServerError'
-    'AFServiceActivity','AFSession','AFTag','AFTagCache'
-    'AFTagFactory','AFTagReference','AFUserAgentFragment','AutoFocusAnalysis'
-    'AutoFocusAPI','AutoFocusObject'
- ]
-
 # Useful information:
 #
 # * We're not doing any input validation in the client itself. We pass
@@ -243,7 +230,7 @@ class AutoFocusAPI(object):
         return self.__dict__.__str__()
 
     @classmethod
-    def _api_request(cls, path, post_data = {}, params = {}):
+    def _api_request(cls, path, post_data = {}, params = {}, e_code_skips = 0, af_cookie = None):
 
         if not AutoFocusAPI.api_key:
             AutoFocusAPI.api_key = AF_APIKEY
@@ -261,14 +248,30 @@ class AutoFocusAPI(object):
         resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
                              allow_redirects = False)
 
-        if resp.status_code >= 300 and resp.status_code < 400:
-            raise AFRedirectError("Unexpected redirect", resp)
+        if not (resp.status_code >= 200 and resp.status_code < 300):
 
-        if resp.status_code >= 400 and resp.status_code < 500:
-            raise AFClientError(resp._content, resp)
+            message = resp._content
 
-        if resp.status_code >= 500 and resp.status_code < 600:
-            raise AFServerError(resp._content, resp)
+            if af_cookie:
+                message = "AF_COOKIE - {}\n{}".format(af_cookie, message)
+
+            if resp.status_code >= 300 and resp.status_code < 400:
+                raise AFRedirectError("Unexpected redirect", resp)
+
+            if resp.status_code >= 400 and resp.status_code < 500:
+                raise AFClientError(message, resp)
+
+            if resp.status_code >= 500 and resp.status_code < 600:
+
+                # Retrying E101x errors, per Tarun Singh
+                try:
+                    resp_data = resp.json()
+                    if resp_data['code'] in ("E1015", "E1016", "E1017") and e_code_skips < 3:
+                        return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
+                except:
+                    pass
+
+                raise AFServerError(message, resp)
 
         return resp
 
@@ -290,18 +293,13 @@ class AutoFocusAPI(object):
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
+            resp = cls._api_request(request_url, af_cookie = af_cookie)
 
-            # Try our request. Check for AF Cookie going away, which is weird
-            # Catch it and add more context. Then throw it up again
+            # Look for malformed JSON
             try:
-                resp = cls._api_request(request_url)
                 resp_data = resp.json()
-            except AFClientError as e:
-                e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
-                raise e
-            except AFServerError as e:
-                e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
-                raise e
+            except:
+                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
             # If we've gotten our bucket size worth of data, or the query has complete
             if resp_data.get('af_complete_percentage', 100) == 100:
@@ -325,11 +323,19 @@ class AutoFocusAPI(object):
 
         sleeper = GraduatingSleep()
 
+        prev_resp_data = {}
+
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
-            resp = cls._api_request(request_url)
-            resp_data = resp.json()
+
+            resp = cls._api_request(request_url, af_cookie = af_cookie)
+
+            # Look for malformed JSON
+            try:
+                resp_data = resp.json()
+            except:
+                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
             # We should always have 'af_complete_percentage' in resp_data.
             # In the case that we do have it, and the value is not 0 perecent complete, then we should also have
@@ -338,7 +344,8 @@ class AutoFocusAPI(object):
                     (resp_data['af_complete_percentage'] and 'total' not in resp_data):
                 raise AFServerError("AF_COOKIE - {}\nServer sent malformed response".format(af_cookie), resp)
 
-            #prev_resp_data = resp_data
+            # Here for debugging purposes
+            prev_resp_data = resp_data
 
             actual_res_count += len(resp_data.get('hits', []))
 
@@ -376,7 +383,6 @@ class AutoFocusAPI(object):
                 if post_data['from'] + post_data['size'] > 4000:
                     post_data['size'] = 4000 - post_data['from']
 
-            init_query_time = time.time()
             init_query_resp = cls._api_request(path, post_data = post_data)
             init_query_data = init_query_resp.json()
             post_data['from'] += post_data['size']
@@ -387,35 +393,25 @@ class AutoFocusAPI(object):
 
             sleeper = GraduatingSleep()
 
-            i = 0
             while True:
 
-                i += 1
 
                 request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
-                # Try our request. Check for AF Cookie going away, which is weird
-                # Catch it and add more context. Then throw it up again
+                resp = cls._api_request(request_url, af_cookie = af_cookie)
+
+                # Look for malformed JSON
                 try:
-                    resp = cls._api_request(request_url)
                     resp_data = resp.json()
-                except AFClientError as e:
-                    # TODO: Can be removed once AF Cookie going away bug is fixed.
-                    if "AF Cookie Not Found" in e.message:
-                        raise AFClientError("Auto Focus Cookie has gone away after %d queries taking %f seconds. Server said percent complete was at %f, last query." \
-                                        % (i, time.time() - init_query_time, prev_resp_data['af_complete_percentage']), e.response)
-                    else:
-                        e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
-                        raise e
-                except AFServerError as e:
-                    e.message = "AF_COOKIE - {}\n".format(af_cookie) + e.message
-                    raise e
+                except:
+                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
                 # If we've gotten our bucket size worth of data, or the query has complete
                 if len(resp_data.get('hits', [])) == post_data['size'] \
                         or resp_data.get('af_complete_percentage', 100) == 100:
                     break
 
+                # Here for debugging purposes
                 prev_resp_data = resp_data
 
                 try:

@@ -10,17 +10,13 @@ query = """
     "operator":"all",
     "children":[
         {
-            "field":"sample.tag_class",
-            "operator":"is","value":
-            "malware_family"
-        },{
             "field":"session.emailsender",
             "operator":"has any value",
             "value":""
         },{
             "field":"sample.tag",
             "operator":"is in the list",
-            "value":["Commodity.Rodecap"]
+            "value":["Commodity.Pony"]
         }
     ]
 }
