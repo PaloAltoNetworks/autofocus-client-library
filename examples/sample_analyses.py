@@ -1,4 +1,4 @@
-from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragments
+from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragment
 
 #AutoFocusAPI.api_key = "<my API key>"
 
@@ -11,13 +11,13 @@ for analysis in sample.get_analyses(AFConnectionActivity):
 sample = AFSample.get("66ee855c9ea5dbad47c7da966dbdb7fef630c0421984f7eeb238f26fb45493f2")
 
 # Can pull the user agent analyses in many different ways.
-for analysis in sample.get_analyses(AFUserAgentFragments):
+for analysis in sample.get_analyses(AFUserAgentFragment):
     print analysis
 
 for analysis in sample.get_analyses('user_agent'):
     print analysis
 
-for analysis in sample.get_analyses([AFUserAgentFragments]):
+for analysis in sample.get_analyses([AFUserAgentFragment]):
     print analysis
 
 for analysis in sample.get_analyses(['user_agent']):
