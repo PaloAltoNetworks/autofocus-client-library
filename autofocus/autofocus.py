@@ -2442,7 +2442,4 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-    AFSample.get("16a52efedce4e87daf4069a8a617f34f154ad78a99a19ad4e3256b67f4d0ea5c").get_analyses()
-
     pass
