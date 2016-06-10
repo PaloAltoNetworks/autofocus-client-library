@@ -1992,6 +1992,10 @@ class AFConnectionActivity(AutoFocusAnalysis):
                 action = "connect"
             elif action == "listening":
                 action = 'listen'
+                if dst_port is not None and dst_ip is not None and src_port is None:
+                    src_port = dst_port
+                    dst_port = None
+                    dst_ip = None
             else:
                 pass
                 #TODO remove this and throw an exception when we are confident about our normalization
@@ -2439,4 +2443,3 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
     pass
-
