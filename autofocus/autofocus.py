@@ -1024,7 +1024,10 @@ class AFSessionFactory(AutoFocusAPI):
         """
 
         for res in cls._api_scan("/sessions/search", query, None, page_size):
-            yield AFSession(**res['_source'])
+            try:
+                yield AFSession(**res['_source'])
+            except _InvalidSampleData as e:
+                pass
 
     @classmethod
     def search(cls, query, sort_by, sort_order):
@@ -1049,10 +1052,7 @@ class AFSampleFactory(AutoFocusAPI):
         for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order):
             try:
                 yield AFSample(**res['_source'])
-            except AutoFocusException as e:
-                raise e
-            except Exception as e:
-                # HMMM bug in sample data
+            except _InvalidSampleData as e:
                 pass
 
     @classmethod
@@ -1070,7 +1070,10 @@ class AFSampleFactory(AutoFocusAPI):
         """
 
         for res in cls._api_scan("/samples/search", query, scope, page_size):
-            yield AFSample(**res['_source'])
+            try:
+                yield AFSample(**res['_source'])
+            except _InvalidSampleData as e:
+                pass
 
     @classmethod
     def get(cls, hash):
@@ -1094,7 +1097,8 @@ class AFSampleFactory(AutoFocusAPI):
                 query['field'] = "sample.sha256"
 
             res = AFSample.search(query).next()
-
+        except _InvalidSampleData as e:
+            raise AFSampleAbsent("Sample data is incomplete in AutoFocus")
         except StopIteration:
             pass
 
@@ -1124,10 +1128,13 @@ class AFSample(AutoFocusObject):
                 #sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
 
         #: str: md5 sum of the sample
-        self.md5 = kwargs['md5']
+        self.md5 = kwargs.get('md5', None)
 
         #: str: sha256 sum of the sample
-        self.sha256 = kwargs['sha256']
+        self.sha256 = kwargs.get('sha256', None)
+
+        if not self.sha256 or not self.md5:
+            raise _InvalidSampleData()
 
         #: Optional[str]: sha1 sum of the sample
         self.sha1 = kwargs.get('sha1', None)
@@ -2442,4 +2449,6 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-    pass
+
+    for sample in AFSample.scan('{"operator":"all","children":[{"field":"sample.sha256","operator":"has no value","value":""}]}'):
+        sample
