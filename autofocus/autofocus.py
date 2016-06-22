@@ -2449,6 +2449,4 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-    for sample in AFSample.scan('{"operator":"all","children":[{"field":"sample.sha256","operator":"has no value","value":""}]}'):
-        sample
+    pass
