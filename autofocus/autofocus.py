@@ -301,7 +301,6 @@ class AutoFocusAPI(object):
             except:
                 raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
-            # If we've gotten our bucket size worth of data, or the query has complete
             if resp_data.get('af_complete_percentage', 100) == 100:
                 return resp_data['total']
 
@@ -337,11 +336,10 @@ class AutoFocusAPI(object):
             except:
                 raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
-            # We should always have 'af_complete_percentage' in resp_data.
-            # In the case that we do have it, and the value is not 0 perecent complete, then we should also have
+            # We should always have 'af_in_progress' in resp_data.
             # 'total' in the resp_data
-            if 'af_complete_percentage' not in resp_data or \
-                    (resp_data['af_complete_percentage'] and 'total' not in resp_data):
+            if 'af_in_progress' not in resp_data or \
+                    (resp_data['af_in_progress'] and 'total' not in resp_data):
                 raise AFServerError("AF_COOKIE - {}\nServer sent malformed response".format(af_cookie), resp)
 
             # Here for debugging purposes
@@ -353,7 +351,7 @@ class AutoFocusAPI(object):
                 yield resp_data
 
             # If we've gotten to 100%, it's time to stop iteration
-            if resp_data['af_complete_percentage'] == 100:
+            if not resp_data['af_in_progress']:
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
@@ -406,9 +404,14 @@ class AutoFocusAPI(object):
                 except:
                     raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
+                # We should always have 'af_in_progress' in resp_data.
+                # 'total' in the resp_data
+                if 'af_in_progress' not in resp_data:
+                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(af_cookie), resp)
+
                 # If we've gotten our bucket size worth of data, or the query has complete
                 if len(resp_data.get('hits', [])) == post_data['size'] \
-                        or resp_data.get('af_complete_percentage', 100) == 100:
+                        or not resp_data['af_in_progress']:
                     break
 
                 # Here for debugging purposes
@@ -2449,4 +2452,11 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+
+    i = 0
+    for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tag","operator":"is in the list","value":["Unit42.PoisonIvy"]}]}'):
+        i += 1
+
+    print i
+
     pass
