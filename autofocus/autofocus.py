@@ -338,9 +338,8 @@ class AutoFocusAPI(object):
 
             # We should always have 'af_in_progress' in resp_data.
             # 'total' in the resp_data
-            if 'af_in_progress' not in resp_data or \
-                    (resp_data['af_in_progress'] and 'total' not in resp_data):
-                raise AFServerError("AF_COOKIE - {}\nServer sent malformed response".format(af_cookie), resp)
+            if 'af_in_progress' not in resp_data:
+                raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(af_cookie), resp)
 
             # Here for debugging purposes
             prev_resp_data = resp_data
@@ -352,6 +351,9 @@ class AutoFocusAPI(object):
 
             # If we've gotten to 100%, it's time to stop iteration
             if not resp_data['af_in_progress']:
+
+                if 'total' not in resp_data:
+                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, query complete but no total information in resp".format(af_cookie), resp)
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
@@ -2452,9 +2454,29 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+    query = """
+    {
+        "operator": "all",
+        "children": [
+            {
+                "field": "sample.malware",
+                "operator": "is in the list",
+                "value": [0, 2]
+            },
+            {
+                "field": "sample.tag_scope",
+                "operator": "is",
+                "value": "unit42"
+            },
+            {"field":"sample.tag_class","operator":"is not","value":"malicious_behavior"},
+            {"field":"sample.tag","operator":"is not in the list","value":["Unit42.Zhxone"]}
+        ]
+    }
+    """
 
     i = 0
-    for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tag","operator":"is in the list","value":["Unit42.PoisonIvy"]}]}'):
+    #for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tag","operator":"is in the list","value":["Unit42.PoisonIvy"]}]}'):
+    for sample in AFSample.scan(query):
         i += 1
 
     print i
