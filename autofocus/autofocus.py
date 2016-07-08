@@ -1157,8 +1157,8 @@ class AFSample(AutoFocusObject):
         elif self.is_public is not None:
             self.is_public = False
 
-        #: str: The file type of the sample
-        self.file_type = kwargs['filetype']
+        #: Optional[str] The file type of the sample
+        self.file_type = kwargs.get('filetype', None)
 
         kwargs['finish_date'] = kwargs.get('finish_date', None)
         if kwargs['finish_date']:
