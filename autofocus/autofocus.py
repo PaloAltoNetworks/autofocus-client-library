@@ -268,6 +268,11 @@ class AutoFocusAPI(object):
                     resp_data = resp.json()
                     if resp_data['code'] in ("E1015", "E1016", "E1017") and e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
+                except requests.ConnectionError as e:
+                    if e_code_skips < 3:
+                        return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
+                    else:
+                        raise e
                 except:
                     pass
 
@@ -2454,31 +2459,6 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-    query = """
-    {
-        "operator": "all",
-        "children": [
-            {
-                "field": "sample.malware",
-                "operator": "is in the list",
-                "value": [0, 2]
-            },
-            {
-                "field": "sample.tag_scope",
-                "operator": "is",
-                "value": "unit42"
-            },
-            {"field":"sample.tag_class","operator":"is not","value":"malicious_behavior"},
-            {"field":"sample.tag","operator":"is not in the list","value":["Unit42.Zhxone"]}
-        ]
-    }
-    """
 
-    i = 0
-    #for sample in AFSample.search('{"operator":"all","children":[{"field":"sample.tag","operator":"is in the list","value":["Unit42.PoisonIvy"]}]}'):
-    for sample in AFSample.scan(query):
-        i += 1
-
-    print i
-
+    tag = AFTag.get("unit42.Locky")
     pass
