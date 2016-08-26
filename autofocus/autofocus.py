@@ -515,9 +515,6 @@ class AFTag(AutoFocusObject):
         #: int: the number of samples matching the tag
         self.count = kwargs["count"]
 
-        #: list[str]: related tag names
-        self.related_tag_names = kwargs["related_tag_names"]
-
         last_hit = kwargs.get('lasthit', None)
         if last_hit:
             last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
@@ -586,6 +583,9 @@ class AFTag(AutoFocusObject):
         if self.down_votes == None:
             self.down_votes = 0
 
+        #: list[str]: related tag names
+        self.related_tag_names = kwargs.get("related_tag_names", NotLoaded())
+
         #: List[str]: Comments for the given tag
         self.comments = kwargs.get("comments", NotLoaded())
 
@@ -604,7 +604,7 @@ class AFTag(AutoFocusObject):
 
         # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id') and type(value) is NotLoaded:
+        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names') and type(value) is NotLoaded:
 
             # Reloading the data via the get method
             self = AFTag.get(self.public_name)
@@ -717,7 +717,6 @@ class AFTagFactory(AutoFocusAPI):
         if total_count <= kwargs['pageSize']:
             return results
 
-        related_tag_names = kwargs.get("related_tags", [])
 
         while ((kwargs['pageSize'] * kwargs['pageNum']) + kwargs['pageSize']) < total_count:
 
@@ -726,8 +725,9 @@ class AFTagFactory(AutoFocusAPI):
             resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
-                tag_data['related_tag_names'] = related_tag_names
-                results.append(AFTagCache.add(AFTag(**tag_data)))
+                tag = AFTag(**tag_data)
+                cached_tag = AFTagCache.add(tag)
+                results.append(cached_tag)
 
         return results
 
@@ -749,6 +749,10 @@ class AFTagFactory(AutoFocusAPI):
                     raise AFTagAbsent("No such tag exists")
                 else:
                     raise e
+
+            tag_data = resp_data['tag']
+            tag_data['related_tag_names'] = resp_data.get("related_tags", [])
+
 
             tag = AFTagCache.add(AFTag(**resp_data['tag']))
 
@@ -2466,5 +2470,7 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    tag = AFTag.get("unit42.LotusBlossom")
+    tag = [v for v in AFTag.list() if "LotusBlossom" in v.name]
+    print tag[0].related_tag_names
+    #tag = AFTag.get("Unit42.LotusBlossom")
     pass
