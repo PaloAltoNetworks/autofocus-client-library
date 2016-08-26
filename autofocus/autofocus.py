@@ -515,6 +515,9 @@ class AFTag(AutoFocusObject):
         #: int: the number of samples matching the tag
         self.count = kwargs["count"]
 
+        #: list[str]: related tag names
+        self.related_tag_names = kwargs["related_tag_names"]
+
         last_hit = kwargs.get('lasthit', None)
         if last_hit:
             last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
@@ -714,6 +717,8 @@ class AFTagFactory(AutoFocusAPI):
         if total_count <= kwargs['pageSize']:
             return results
 
+        related_tag_names = kwargs.get("related_tags", [])
+
         while ((kwargs['pageSize'] * kwargs['pageNum']) + kwargs['pageSize']) < total_count:
 
             kwargs['pageNum'] += 1
@@ -721,6 +726,7 @@ class AFTagFactory(AutoFocusAPI):
             resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
+                tag_data['related_tag_names'] = related_tag_names
                 results.append(AFTagCache.add(AFTag(**tag_data)))
 
         return results
@@ -2460,5 +2466,5 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    tag = AFTag.get("unit42.Locky")
+    tag = AFTag.get("unit42.LotusBlossom")
     pass
