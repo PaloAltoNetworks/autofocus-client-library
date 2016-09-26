@@ -225,7 +225,7 @@ class AutoFocusAPI(object):
 
     def __repr__(self):
         return self.__dict__.__str__()
-    
+
     def __str__(self):
         return self.__dict__.__str__()
 
@@ -237,7 +237,7 @@ class AutoFocusAPI(object):
 
         if not AutoFocusAPI.api_key:
             raise AFClientError("AF_APIKEY is not set. Library requires an APIKEY to be set")
-            
+
         post_data["apiKey"] = AutoFocusAPI.api_key
 
         headers = {
@@ -858,7 +858,7 @@ class AFSession(AutoFocusObject):
         self._vsys = kwargs.get("vsys")
 
     @classmethod
-    def scan(cls, query, page_size = 20000):
+    def scan(cls, query, page_size = 10000):
         """
 
         The AFSession.scan method is a factory to return AFSession object instances. These correspond to values returned
@@ -1310,7 +1310,7 @@ class AFSample(AutoFocusObject):
         return AFSampleFactory.count(query, scope)
 
     @classmethod
-    def scan(cls, query, scope = "global", page_size = 20000):
+    def scan(cls, query, scope = "global", page_size = 10000):
         """
 
         The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
