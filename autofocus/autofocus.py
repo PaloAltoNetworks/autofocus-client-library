@@ -606,14 +606,20 @@ class AFTag(AutoFocusObject):
         #      comments, refs, review, support_id
         if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names') and type(value) is NotLoaded:
 
+            new_tag = AFTagFactory.get(self.public_name, use_cache=False)
+            old_tag = self
+
             # Reloading the data via the get method
-            self = AFTag.get(self.public_name)
+            self = new_tag
             value = object.__getattribute__(self, attr)
 
             # Current data models are inconsistent, need to throw a warning about defaulting to None here
             # TODO: Remove this once the objects returned by the REST service are made consistent.
             if type(value) is NotLoaded:
-                value = None
+                if attr == "related_tag_names":
+                    value = []
+                else:
+                    value = None
                 if SHOW_WARNINGS:
                     sys.stderr.write("WARNING: Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
 
@@ -671,22 +677,16 @@ class AFTagCache(object):
 
     @classmethod
     def get(cls, tag_name):
-
-        if tag_name in cls._cache:
-            return cls._cache[tag_name]
-
-        return None
+        return cls._cache.get(tag_name, None)
 
     @classmethod
     def add(cls, tag):
-
         cls._cache[tag.public_name] = tag
         return cls._cache[tag.public_name]
 
     @classmethod
     def clear(cls, tag):
-
-        cls._cache[tag.public_name] = {}
+        del cls._cache[tag.public_name]
 
 class AFTagFactory(AutoFocusAPI):
     """
@@ -710,7 +710,7 @@ class AFTagFactory(AutoFocusAPI):
         resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
         for tag_data in resp_data['tags']:
-            results.append(AFTag(**tag_data))
+            results.append(AFTagCache.add(AFTag(**tag_data)))
 
         total_count = resp_data['total_count']
 
@@ -725,36 +725,35 @@ class AFTagFactory(AutoFocusAPI):
             resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
-                tag = AFTag(**tag_data)
-                cached_tag = AFTagCache.add(tag)
-                results.append(cached_tag)
+                tag = AFTagCache.add(AFTag(**tag_data))
+                results.append(tag)
 
         return results
 
     @classmethod
-    def get(cls, tag_name):
+    def get(cls, tag_name, use_cache = True):
         """
         Notes: See AFTag.get for documentation
         """
 
-        tag = AFTagCache.get(tag_name)
+        if use_cache:
+            tag = AFTagCache.get(tag_name)
+            if tag:
+                return tag
 
-        if not tag:
+        try:
+            resp = cls._api_request("/tag/" + tag_name)
+            resp_data = resp.json()
+        except AFClientError as e:
+            if e.response.status_code == 404:
+                raise AFTagAbsent("No such tag exists")
+            else:
+                raise e
 
-            try:
-                resp = cls._api_request("/tag/" + tag_name)
-                resp_data = resp.json()
-            except AFClientError as e:
-                if e.response.status_code == 404:
-                    raise AFTagAbsent("No such tag exists")
-                else:
-                    raise e
+        tag_data = resp_data['tag']
+        tag_data['related_tag_names'] = resp_data.get("related_tags", [])
 
-            tag_data = resp_data['tag']
-            tag_data['related_tag_names'] = resp_data.get("related_tags", [])
-
-
-            tag = AFTagCache.add(AFTag(**resp_data['tag']))
+        tag = AFTagCache.add(AFTag(**tag_data))
 
         return tag
 
@@ -2469,6 +2468,8 @@ for k,v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
+
+    print AFTag.get("Unit42.LotusBlossom").related_tag_names
 
     tag = [v for v in AFTag.list() if "LotusBlossom" in v.name]
     print tag[0].related_tag_names
