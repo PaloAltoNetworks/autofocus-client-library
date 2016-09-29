@@ -583,6 +583,9 @@ class AFTag(AutoFocusObject):
         if self.down_votes == None:
             self.down_votes = 0
 
+        #: list[str]: related tag names
+        self.related_tag_names = kwargs.get("related_tag_names", NotLoaded())
+
         #: List[str]: Comments for the given tag
         self.comments = kwargs.get("comments", NotLoaded())
 
@@ -601,16 +604,22 @@ class AFTag(AutoFocusObject):
 
         # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id') and type(value) is NotLoaded:
+        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names') and type(value) is NotLoaded:
+
+            new_tag = AFTagFactory.get(self.public_name, use_cache=False)
+            old_tag = self
 
             # Reloading the data via the get method
-            self = AFTag.get(self.public_name)
+            self = new_tag
             value = object.__getattribute__(self, attr)
 
             # Current data models are inconsistent, need to throw a warning about defaulting to None here
             # TODO: Remove this once the objects returned by the REST service are made consistent.
             if type(value) is NotLoaded:
-                value = None
+                if attr == "related_tag_names":
+                    value = []
+                else:
+                    value = None
                 if SHOW_WARNINGS:
                     sys.stderr.write("WARNING: Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
 
@@ -668,22 +677,16 @@ class AFTagCache(object):
 
     @classmethod
     def get(cls, tag_name):
-
-        if tag_name in cls._cache:
-            return cls._cache[tag_name]
-
-        return None
+        return cls._cache.get(tag_name, None)
 
     @classmethod
     def add(cls, tag):
-
         cls._cache[tag.public_name] = tag
         return cls._cache[tag.public_name]
 
     @classmethod
     def clear(cls, tag):
-
-        cls._cache[tag.public_name] = {}
+        del cls._cache[tag.public_name]
 
 class AFTagFactory(AutoFocusAPI):
     """
@@ -707,12 +710,13 @@ class AFTagFactory(AutoFocusAPI):
         resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
         for tag_data in resp_data['tags']:
-            results.append(AFTag(**tag_data))
+            results.append(AFTagCache.add(AFTag(**tag_data)))
 
         total_count = resp_data['total_count']
 
         if total_count <= kwargs['pageSize']:
             return results
+
 
         while ((kwargs['pageSize'] * kwargs['pageNum']) + kwargs['pageSize']) < total_count:
 
@@ -721,30 +725,35 @@ class AFTagFactory(AutoFocusAPI):
             resp_data = cls._api_request("/tags/", post_data = kwargs).json()
 
             for tag_data in resp_data['tags']:
-                results.append(AFTagCache.add(AFTag(**tag_data)))
+                tag = AFTagCache.add(AFTag(**tag_data))
+                results.append(tag)
 
         return results
 
     @classmethod
-    def get(cls, tag_name):
+    def get(cls, tag_name, use_cache = True):
         """
         Notes: See AFTag.get for documentation
         """
 
-        tag = AFTagCache.get(tag_name)
+        if use_cache:
+            tag = AFTagCache.get(tag_name)
+            if tag:
+                return tag
 
-        if not tag:
+        try:
+            resp = cls._api_request("/tag/" + tag_name)
+            resp_data = resp.json()
+        except AFClientError as e:
+            if e.response.status_code == 404:
+                raise AFTagAbsent("No such tag exists")
+            else:
+                raise e
 
-            try:
-                resp = cls._api_request("/tag/" + tag_name)
-                resp_data = resp.json()
-            except AFClientError as e:
-                if e.response.status_code == 404:
-                    raise AFTagAbsent("No such tag exists")
-                else:
-                    raise e
+        tag_data = resp_data['tag']
+        tag_data['related_tag_names'] = resp_data.get("related_tags", [])
 
-            tag = AFTagCache.add(AFTag(**resp_data['tag']))
+        tag = AFTagCache.add(AFTag(**tag_data))
 
         return tag
 
@@ -2460,5 +2469,9 @@ for k,v in _analysis_class_map.items():
 
 if __name__ == "__main__":
 
-    tag = AFTag.get("unit42.Locky")
+    print AFTag.get("Unit42.LotusBlossom").related_tag_names
+
+    tag = [v for v in AFTag.list() if "LotusBlossom" in v.name]
+    print tag[0].related_tag_names
+    #tag = AFTag.get("Unit42.LotusBlossom")
     pass
