@@ -549,8 +549,8 @@ class AFTag(AutoFocusObject):
         #: Optional[str]: the owner of the tag
         self.owner = kwargs.get("owner", None)
 
-        #: str: the authors description of the tag
-        self.description = kwargs["description"]
+        #: Optional[str]: the authors description of the tag
+        self.description = kwargs.get("description", "")
 
         #: str: The definition status for the tag
         self.status = kwargs["tag_definition_status"]
