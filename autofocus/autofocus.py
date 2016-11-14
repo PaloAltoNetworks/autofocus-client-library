@@ -506,10 +506,10 @@ class AFTag(AutoFocusObject):
 
     def __init__(self, **kwargs):
 
-        #: str: The backend compliant name for the tag. You most likely want public_name
+        #: str: The shorthand name for a tag
         self.name = kwargs["tag_name"]
 
-        #: str: the presentation name for the tag
+        #: str: The (Unique) name for a tag, used in searches & URLs
         self.public_name = kwargs["public_tag_name"]
 
         #: int: the number of samples matching the tag
