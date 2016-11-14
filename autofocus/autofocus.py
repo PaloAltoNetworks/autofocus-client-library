@@ -705,6 +705,9 @@ class AFTagFactory(AutoFocusAPI):
         kwargs['pageSize'] = 200
         kwargs['pageNum'] = 0
 
+        if args:
+            kwargs['scope'] = str(args[0]).lower()
+
         results = []
 
         resp_data = cls._api_request("/tags/", post_data = kwargs).json()
