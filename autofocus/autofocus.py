@@ -272,7 +272,7 @@ class AutoFocusAPI(object):
                     if e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                     else:
-                        raise e
+                        raise AFServerError(e.message, resp)
                 except:
                     pass
 
