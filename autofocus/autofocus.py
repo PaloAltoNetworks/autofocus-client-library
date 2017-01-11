@@ -1879,9 +1879,9 @@ class AFApkSuspiciousPattern(AutoFocusAnalysis):
         self.grayware_count = int(grayware)
 
         #: str: A string representing a description of the behavior a malware exhibits
-        self.description = pattern
+        self.description = description
 
-        #: str: A string representing a description of the behavior a malware exhibits
+        #: str: A string representing the pattern that the behavior a malware exhibits
         self.pattern = pattern
 
     @classmethod
