@@ -1518,7 +1518,7 @@ class AFSample(AutoFocusObject):
             af_analysis_class = _analysis_class_map.get(section, None)
 
             if not af_analysis_class:
-                if SHOW_WARNINGS:
+                if SHOW_WARNINGS and section != 'truncated_sections':
                     sys.stderr.write("WARNING: Was expecting a known section in analysis_class_map, got {} instead\n"
                                      .format(section))
                 continue
@@ -1531,9 +1531,31 @@ class AFSample(AutoFocusObject):
                         analyses.append(af_analysis_class._parse_auto_focus_response(platform, data))
                         # Adding the _raw_line for potential debug use later, can be removed
                         analyses[-1]._raw_line = data['line']
+
+                        if section not in ("apk_cert_file", "apk_certificate_id"):
+                            continue
+
+                        # Need to join the two rows for apk_cert_file and apk_cert_id to AFApkCertificate
+                        analysis_a = analyses[-1]
+
+                        for i in range(0, len(analyses) - 1):
+                            analysis_b = analyses[i]
+                            if type(analysis_b) is AFApkCertificate:
+                                if not analysis_b.sha1:
+                                    analysis_b.file_path = analysis_a.file_path
+                                    analysis_b.sha1 = analysis_a.sha1
+                                    analysis_b.sha256 = analysis_a.sha256
+                                    analysis_b.issuer = analysis_a.issuer
+                                    analysis_b.owner = analysis_a.owner
+                                analysis_b._raw_line += "\n" + analysis_a._raw_line
+                                analyses.pop()
+                                break
+
                     except _InvalidAnalysisData:
                         pass
-                    except:
+                    except Exception as e:
+                        #import traceback
+                        #traceback.print_exc()
                         pass
 
         return analyses
@@ -1631,6 +1653,389 @@ class AFApkReceiverAnalysis(AutoFocusAnalysis):
         (receiver) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (rcv_data.get('b', 0), rcv_data.get('m', 0), rcv_data.get('g', 0))
         return cls(platform, receiver, benign_c, malware_c, grayware_c)
+
+#apk_suspicious_action_monitored
+class AFApkSuspiciousActivitySummary(AutoFocusAnalysis):
+
+    def __init__(self, platform, description, detail, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string describing the activity
+        self.description = description
+
+        #: str: A string representing the details of the activity
+        self.detail = detail
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (description, detail) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, description, detail, benign_c, malware_c, grayware_c)
+
+#apk_packagename
+class AFApkPackage(AutoFocusAnalysis):
+
+    def __init__(self, platform, name, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string that is the name of the package for the APK
+        self.name = name
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (name) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, name, benign_c, malware_c, grayware_c)
+
+#apk_app_icon
+class AFApkIcon(AutoFocusAnalysis):
+
+    def __init__(self, platform, path, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: the path to the icon for the app
+        self.path = path
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (path) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, path, benign_c, malware_c, grayware_c)
+
+#version
+class AFApkVersion(AutoFocusAnalysis):
+
+    def __init__(self, platform, version, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: int: The version of the APK
+        self.version = int(version)
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (version) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, version, benign_c, malware_c, grayware_c)
+
+# apk_digital_signer
+class AFDigitalSigner(AutoFocusAnalysis):
+
+    def __init__(self, platform, signer, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the digital signer of the sample
+        self.signer = signer
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (signer) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, signer, benign_c, malware_c, grayware_c)
+
+#summary
+class AFApkEmbeddedFile(AutoFocusAnalysis):
+
+    def __init__(self, platform, type, sha256, file_path, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The file's sha256 sum
+        self.sha256 = sha256.lower()
+
+        #: str: The file's type (jpeg, png, etc..)
+        self.type = type
+
+        #: str: the file's path & name
+        self.file_path = file_path
+
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (type, file_path, sha256) = line_parts[0:3]
+        sha256 = sha256.split("=")[-1]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, type, sha256, file_path, benign_c, malware_c, grayware_c)
+
+#summary
+class AFAnalysisSummary(AutoFocusAnalysis):
+
+    def __init__(self, platform, summary, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing a description of the behavior a malware exhibits
+        self.summary = summary
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (summary) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, summary, benign_c, malware_c, grayware_c)
+
+#apk_suspcious_pattern
+class AFApkSuspiciousPattern(AutoFocusAnalysis):
+
+    def __init__(self, platform, description, pattern, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing a description of the behavior a malware exhibits
+        self.description = description
+
+        #: str: A string representing the pattern that the behavior a malware exhibits
+        self.pattern = pattern
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (description, pattern) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, description, pattern, benign_c, malware_c, grayware_c)
+
+#apk_app_name
+class AFApkAppName(AutoFocusAnalysis):
+
+    def __init__(self, platform, name, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: The APK's App Name
+        self.name = name
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (name) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, name, benign_c, malware_c, grayware_c)
+
+#summary
+class AFApkRepackaged(AutoFocusAnalysis):
+
+    def __init__(self, platform, repackaged, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: bool: Whether the APK has been repackaged or not
+        self.repackaged = True if repackaged and repackaged == "True" else False
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (repackaged) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, repackaged, benign_c, malware_c, grayware_c)
+
+#apk_certificate_id
+#apk_cert_file
+class AFApkCertificate(AutoFocusAnalysis):
+    """This class combines both apk_cert_file and apk_certificated_id analysis sections. Some samples only have
+    apk_certificate_id, resulting in an object that only has an md5 sum, and the rest of hte attributes being null
+    """
+
+    def __init__(self, platform, benign, malware, grayware, md5, sha1 = None, sha256 = None, file_path = None, owner = None, issuer = None):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the md5 of the APK cert
+        self.md5 = md5.lower()
+
+        #: Optional[str]: A string representing the sha1 of the APK cert
+        self.sha1 = sha1.lower() if sha1 else None
+
+        #: Optional[str]: A string representing the sha256 of the APK cert
+        self.sha256 = sha256.lower() if sha256 else None
+
+        #: Optional[str]: A string representing the owner of the APK certificate
+        self.owner = owner
+
+        #: Optional[str]: A string representing the issuer of the APK certificate
+        self.issuer = issuer
+
+        #: Optional[str]: A string representing the file path and name for the cert
+        self.file_path = file_path
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        # If this an apk_certificate_id record, it will just be the md5
+        if len(sensor_data['line']) == 32:
+            (md5) = sensor_data['line']
+            (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+            return cls(platform, benign_c, malware_c, grayware_c, md5 = md5)
+
+        fields_match = re.search("certificate , ([^,]+) , owner=(.*) , issuer=(.*) , md5=(\S+) , sha1=(\S+) , sha256=(\S+)", sensor_data['line'])
+
+        if not fields_match:
+            raise _InvalidAnalysisData
+
+        (file_path, owner, issuer, md5, sha1, sha256) = fields_match.groups()
+
+        # If this is the apk_cert_file record, it will have more details
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, benign_c, malware_c, grayware_c,
+                   file_path = file_path, md5 = md5, sha1 = sha1, sha256 = sha256,
+                   owner = owner, issuer = issuer)
+
+#mac_embedded_url
+class AFMacEmbeddedURL(AutoFocusAnalysis):
+
+    def __init__(self, platform, url, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string representing the URL embedded in the sample
+        self.url = url
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (url) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, url, benign_c, malware_c, grayware_c)
 
 #apk_defined_sensor
 class AFApkSensorAnalysis(AutoFocusAnalysis):
@@ -2452,6 +2857,15 @@ _analysis_class_map['apk_sensitive_api_call'] = AFApkSensitiveApiCallAnalysis
 _analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
 _analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
 _analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
+_analysis_class_map['mac_embedded_url'] = AFMacEmbeddedURL
+_analysis_class_map['apk_suspicious_action_monitored'] = AFApkSuspiciousActivitySummary
+_analysis_class_map['summary'] = AFAnalysisSummary
+_analysis_class_map['apk_app_name'] = AFApkAppName
+_analysis_class_map['apk_certificate_id'] = AFApkCertificate
+_analysis_class_map['apk_cert_file'] = AFApkCertificate
+_analysis_class_map['apk_digital_signer'] = AFDigitalSigner
+_analysis_class_map['apk_packagename'] = AFApkPackage
+_analysis_class_map['apk_version_num'] = AFApkVersion
 _analysis_class_map['behavior'] = AFBehaviorAnalysis
 _analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis
 _analysis_class_map['connection'] = AFConnectionActivity
@@ -2465,16 +2879,14 @@ _analysis_class_map['process'] = AFProcessActivity
 _analysis_class_map['registry'] = AFRegistryActivity
 _analysis_class_map['service'] = AFServiceActivity
 _analysis_class_map['user_agent'] = AFUserAgentFragment
+_analysis_class_map['apk_isrepackaged'] = AFApkRepackaged
+_analysis_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
+_analysis_class_map['apk_app_icon'] = AFApkIcon
+_analysis_class_map['apk_internal_file'] = AFApkEmbeddedFile
 
 for k,v in _analysis_class_map.items():
     _class_analysis_map[v] = k
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-    print AFTag.get("Unit42.LotusBlossom").related_tag_names
-
-    tag = [v for v in AFTag.list() if "LotusBlossom" in v.name]
-    print tag[0].related_tag_names
-    #tag = AFTag.get("Unit42.LotusBlossom")
     pass
