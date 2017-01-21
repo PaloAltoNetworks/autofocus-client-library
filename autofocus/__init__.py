@@ -19,6 +19,7 @@ from autofocus import AFApkSuspiciousActivitySummary
 from autofocus import AFApkSuspiciousApiCallAnalysis
 from autofocus import AFApkSuspiciousFileAnalysis
 from autofocus import AFApkSuspiciousStringAnalysis
+from autofocus import AFApkVersion
 from autofocus import AFBehaviorAnalysis
 from autofocus import AFBehaviorTypeAnalysis
 from autofocus import AFClientError
@@ -72,6 +73,7 @@ _ALL_ = [
     "AFApkSuspiciousApiCallAnalysis",
     "AFApkSuspiciousFileAnalysis",
     "AFApkSuspiciousStringAnalysis",
+    "AFApkVersion",
     "AFBehaviorAnalysis",
     "AFBehaviorTypeAnalysis",
     "AFClientError",
