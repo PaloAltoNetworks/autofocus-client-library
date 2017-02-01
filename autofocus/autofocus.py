@@ -491,9 +491,37 @@ class AutoFocusAPI(object):
             for hit in res['hits']:
                 yield hit
 
+
 # TODO: Create a class for AFTag.refs
 class AFTagReference(AutoFocusObject):
     pass
+
+
+class AFTagSearch(AutoFocusObject):
+    def __init__(self, **kwargs):
+
+        #: int: count of search results
+        self.count = kwargs["count"]
+
+        last_hit = kwargs.get("lasthit", None)
+        if last_hit:
+            last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+
+        #: Optional[datetime]: the last time there was activity witnessed for the tag search
+        self.last_hit = last_hit
+
+        #: str: search name
+        self.search_name = kwargs["search_name"]
+
+        #: int: tag definition search status id
+        self.tag_definition_status_id = kwargs["tag_definition_search_status_id"]
+
+        #: str: tag definition search status
+        self.tag_definition_search_status = kwargs["tag_definition_search_status"]
+
+        #: str: ui search definition
+        self.ui_search_definition = kwargs["ui_search_definition"]
+
 
 class AFTag(AutoFocusObject):
     """
@@ -564,6 +592,12 @@ class AFTag(AutoFocusObject):
         #: int: The definition scoe id for the tag
         self.scope_id = kwargs["tag_definition_scope_id"]
 
+        #: List[AFTagSearch]: tag searches
+        self.tag_searches = NotLoaded()
+
+        # Private _tags
+        self._tag_searches = kwargs.get('tag_searches', [])
+
         #: Optional[str]: The class for the tag. Need to break convention for reserved words in python
         self.tag_class = kwargs.get("tag_class", None)
 
@@ -575,12 +609,12 @@ class AFTag(AutoFocusObject):
 
         #: int: up votes for the tag
         self.up_votes = kwargs.get("up_votes", 0)
-        if self.up_votes == None:
+        if self.up_votes is None:
             self.up_votes = 0
 
         #: int: Down votes for the tag
         self.down_votes = kwargs.get("down_votes", 0)
-        if self.down_votes == None:
+        if self.down_votes is None:
             self.down_votes = 0
 
         #: list[str]: related tag names
@@ -604,7 +638,8 @@ class AFTag(AutoFocusObject):
 
         # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names') and type(value) is NotLoaded:
+        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_searches') and \
+                type(value) is NotLoaded:
 
             new_tag = AFTagFactory.get(self.public_name, use_cache=False)
             old_tag = self
@@ -612,6 +647,13 @@ class AFTag(AutoFocusObject):
             # Reloading the data via the get method
             self = new_tag
             value = object.__getattribute__(self, attr)
+
+            # Load tag searches if needed
+            if attr == "tag_searches" and type(value) is NotLoaded:
+                value = []
+                for tag_search in self._tag_searches:
+                    value.append(AFTagSearch(**tag_search))
+                self.tag_searches = value
 
             # Current data models are inconsistent, need to throw a warning about defaulting to None here
             # TODO: Remove this once the objects returned by the REST service are made consistent.
@@ -755,6 +797,7 @@ class AFTagFactory(AutoFocusAPI):
 
         tag_data = resp_data['tag']
         tag_data['related_tag_names'] = resp_data.get("related_tags", [])
+        tag_data['tag_searches'] = resp_data.get("tag_searches", [])
 
         tag = AFTagCache.add(AFTag(**tag_data))
 
