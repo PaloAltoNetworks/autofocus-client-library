@@ -567,6 +567,9 @@ class AFTagSearch(AutoFocusObject):
         #: str: ui search definition
         self.ui_search_definition = kwargs["ui_search_definition"]
 
+    def __str__(self):
+        return self.ui_search_definition
+
 
 class AFTag(AutoFocusObject):
     """
