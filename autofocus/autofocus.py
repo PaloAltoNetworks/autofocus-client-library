@@ -17,7 +17,10 @@ def get_logger():
     """
     logger = logging.getLogger("autofocus")
     if not logger.handlers:
-        logger.addHandler(StreamHandler())
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     return logger
 
 
@@ -1639,8 +1642,8 @@ class AFSample(AutoFocusObject):
                                 analyses.pop()
                                 break
 
-                    except _InvalidAnalysisData:
-                        pass
+                    except _InvalidAnalysisData as e:
+                        get_logger().debug(e)
                     except Exception as e:
                         get_logger().debug(e)
 
@@ -1806,6 +1809,66 @@ class AFApkPackage(AutoFocusAnalysis):
         return cls(platform, name, benign_c, malware_c, grayware_c)
 
 
+#apk_embedded_library
+class AFApkEmbeddedLibrary(AutoFocusAnalysis):
+
+    def __init__(self, platform, name, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string that is the name of the embedded library for the APK
+        self.name = name
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (name) = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, name, benign_c, malware_c, grayware_c)
+
+
+#apk_repackaged
+class AFApkRepackaged(AutoFocusAnalysis):
+
+    def __init__(self, platform, repackaged, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: A string that is the name of the package for the APK
+        self.repackaged = repackaged
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (name) = line_parts[0]
+        get_logger().debug(name)
+
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, name, benign_c, malware_c, grayware_c)
+
+
 #apk_app_icon
 class AFApkIcon(AutoFocusAnalysis):
 
@@ -1852,8 +1915,8 @@ class AFApkVersion(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-        #: int: The version of the APK
-        self.version = int(version)
+        #: str: The version of the APK
+        self.version = str(version)
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
@@ -2139,6 +2202,75 @@ class AFMacEmbeddedURL(AutoFocusAnalysis):
         (url) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, url, benign_c, malware_c, grayware_c)
+
+
+#mac_embedded_file
+class AFMacEmbeddedFile(AutoFocusAnalysis):
+
+    def __init__(self, kwargs):
+
+        #: str: The platform the sample analysis is from
+        self.platform = kwargs['platform']
+
+        #: str: sha256 of embedded file
+        self.sha256 = kwargs['sha256']
+
+        #: str: sha1 of embedded file
+        self.sha1 = kwargs['sha1']
+
+        #: str: path of embedded file
+        self.path = kwargs['path']
+
+        #: int: size of embedded file
+        self.size = int(kwargs['size'])
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(kwargs['benign_count'])
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(kwargs['grayware_count'])
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(kwargs['malware_count'])
+
+        #: str: name of embedded file
+        self.name = kwargs['name']
+
+        #: str: format of embedded file
+        self.file_format = kwargs['file_format']
+
+        #: str: sha1 of parent of this embedded file
+        self.parent_sha1 = kwargs['parent_sha1']
+
+        #: str: sha256 of parent of this embedded file
+        self.parent_sha256 = kwargs['parent_sha256']
+
+        #: str: path of parent of this file
+        self.parent_path = kwargs['parent_path']
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, service_data):
+
+        line_parts = [l.strip() for l in service_data['line'].split(" , ")]
+        data = {}
+        for entry in line_parts:
+            if entry:
+                (k, v) = entry.split("=")
+                if not v:
+                    v = None
+                if k == "format":
+                    # don't mess with reserved words
+                    k = "file_format"
+                data[k] = v
+
+        data['benign_count'] = service_data.get('b', 0)
+        data['malware_count'] = service_data.get('m', 0)
+        data['grayware_count'] = service_data.get('g', 0)
+        data['platform'] = platform
+
+        ma = cls(data)
+
+        return ma
 
 
 #apk_defined_sensor
@@ -2977,6 +3109,7 @@ _analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
 _analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
 _analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
 _analysis_class_map['mac_embedded_url'] = AFMacEmbeddedURL
+_analysis_class_map['mac_embedded_file'] = AFMacEmbeddedFile
 _analysis_class_map['apk_suspicious_action_monitored'] = AFApkSuspiciousActivitySummary
 _analysis_class_map['summary'] = AFAnalysisSummary
 _analysis_class_map['apk_app_name'] = AFApkAppName
@@ -2984,6 +3117,8 @@ _analysis_class_map['apk_certificate_id'] = AFApkCertificate
 _analysis_class_map['apk_cert_file'] = AFApkCertificate
 _analysis_class_map['apk_digital_signer'] = AFDigitalSigner
 _analysis_class_map['apk_packagename'] = AFApkPackage
+_analysis_class_map['apk_embedded_library'] = AFApkEmbeddedLibrary
+_analysis_class_map['apk_isrepackaged'] = AFApkRepackaged
 _analysis_class_map['apk_version_num'] = AFApkVersion
 _analysis_class_map['behavior'] = AFBehaviorAnalysis
 _analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis

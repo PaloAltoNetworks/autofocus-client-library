@@ -9,6 +9,8 @@ from autofocus import AFApkEmbededUrlAnalysis
 from autofocus import AFApkIcon
 from autofocus import AFApkIntentFilterAnalysis
 from autofocus import AFApkPackage
+from autofocus import AFApkEmbeddedLibrary
+from autofocus import AFApkRepackaged
 from autofocus import AFApkReceiverAnalysis
 from autofocus import AFApkRepackaged
 from autofocus import AFApkRequestedPermissionAnalysis
@@ -30,6 +32,7 @@ from autofocus import AFFileActivity
 from autofocus import AFHttpActivity
 from autofocus import AFJavaApiActivity
 from autofocus import AFMacEmbeddedURL
+from autofocus import AFMacEmbeddedFile
 from autofocus import AFMutexActivity
 from autofocus import AFProcessActivity
 from autofocus import AFRedirectError
@@ -64,6 +67,8 @@ _ALL_ = [
     "AFApkIcon"
     "AFApkIntentFilterAnalysis",
     "AFApkPackage",
+    "AFApkEmbeddedLibrary",
+    "AFApkRepackaged",
     "AFApkReceiverAnalysis",
     "AFApkRepackaged",
     "AFApkRequestedPermissionAnalysis",
@@ -85,6 +90,7 @@ _ALL_ = [
     "AFHttpActivity",
     "AFJavaApiActivity",
     "AFMacEmbeddedURL",
+    "AFMacEmbeddedFile",
     "AFMutexActivity",
     "AFProcessActivity",
     "AFRedirectError",
