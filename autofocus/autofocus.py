@@ -542,7 +542,7 @@ class AFTagReference(AutoFocusObject):
     pass
 
 
-class AFTagSearch(AutoFocusObject):
+class AFTagDefinition(AutoFocusObject):
     def __init__(self, **kwargs):
 
         #: int: count of search results
@@ -638,11 +638,11 @@ class AFTag(AutoFocusObject):
         #: int: The definition scoe id for the tag
         self.scope_id = kwargs["tag_definition_scope_id"]
 
-        #: List[AFTagSearch]: tag searches
-        self.tag_searches = NotLoaded()
+        #: List[AFTagDefinition]: tag searches
+        self.tag_definitions = NotLoaded()
 
         # Private _tags
-        self._tag_searches = kwargs.get('tag_searches', [])
+        self._tag_definitions = kwargs.get('tag_searches', [])
 
         #: Optional[str]: The class for the tag. Need to break convention for reserved words in python
         self.tag_class = kwargs.get("tag_class", None)
@@ -685,7 +685,7 @@ class AFTag(AutoFocusObject):
 
         # Not offered in the list controller, have to call get to lazy load:
         #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_searches') and \
+        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_definitions') and \
                 type(value) is NotLoaded:
 
             new_tag = AFTagFactory.get(self.public_name, use_cache=False)
@@ -696,11 +696,11 @@ class AFTag(AutoFocusObject):
             value = object.__getattribute__(self, attr)
 
             # Load tag searches if needed
-            if attr == "tag_searches" and type(value) is NotLoaded:
+            if attr == "tag_definitions" and type(value) is NotLoaded:
                 value = []
-                for tag_search in self._tag_searches:
-                    value.append(AFTagSearch(**tag_search))
-                self.tag_searches = value
+                for tag_definition in self._tag_definitions:
+                    value.append(AFTagDefinition(**tag_definition))
+                self.tag_definitions = value
 
             # Current data models are inconsistent, need to throw a warning about defaulting to None here
             # TODO: Remove this once the objects returned by the REST service are made consistent.
@@ -1140,8 +1140,8 @@ class AFSessionFactory(AutoFocusAPI):
         for res in cls._api_scan("/sessions/search", query, None, page_size):
             try:
                 yield AFSession(**res['_source'])
-            except _InvalidSampleData:
-                pass
+            except _InvalidSampleData as e:
+                get_logger().debug(e, exc_info=True)
 
     @classmethod
     def search(cls, query, sort_by, sort_order):
@@ -1167,8 +1167,8 @@ class AFSampleFactory(AutoFocusAPI):
         for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order):
             try:
                 yield AFSample(**res['_source'])
-            except _InvalidSampleData:
-                pass
+            except _InvalidSampleData as e:
+                get_logger().debug(e, exc_info=True)
 
     @classmethod
     def count(cls, query, scope):
