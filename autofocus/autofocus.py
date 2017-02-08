@@ -1840,38 +1840,6 @@ class AFApkEmbeddedLibrary(AutoFocusAnalysis):
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, name, benign_c, malware_c, grayware_c)
 
-
-#apk_repackaged
-class AFApkRepackaged(AutoFocusAnalysis):
-
-    def __init__(self, platform, repackaged, benign, malware, grayware):
-
-        #: str: The platform the sample analysis is from
-        self.platform = platform
-
-        #: int: The number of samples regarded as benign related to this analysis
-        self.benign_count = int(benign)
-
-        #: int: The number of samples regarded as malware related to this analysis
-        self.malware_count = int(malware)
-
-        #: int: The number of samples regarded as grayware related to this analysis
-        self.grayware_count = int(grayware)
-
-        #: str: A string that is the name of the package for the APK
-        self.repackaged = repackaged
-
-    @classmethod
-    def _parse_auto_focus_response(cls, platform, sensor_data):
-
-        line_parts = sensor_data['line'].split(" , ")
-        (name) = line_parts[0]
-        get_logger().debug(name)
-
-        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
-        return cls(platform, name, benign_c, malware_c, grayware_c)
-
-
 #apk_app_icon
 class AFApkIcon(AutoFocusAnalysis):
 
@@ -3136,7 +3104,6 @@ _analysis_class_map['process'] = AFProcessActivity
 _analysis_class_map['registry'] = AFRegistryActivity
 _analysis_class_map['service'] = AFServiceActivity
 _analysis_class_map['user_agent'] = AFUserAgentFragment
-_analysis_class_map['apk_isrepackaged'] = AFApkRepackaged
 _analysis_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
 _analysis_class_map['apk_app_icon'] = AFApkIcon
 _analysis_class_map['apk_internal_file'] = AFApkEmbeddedFile
