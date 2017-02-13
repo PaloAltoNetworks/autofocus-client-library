@@ -1562,7 +1562,7 @@ class AFSample(AutoFocusObject):
         """
         return AFSampleFactory.get(hash)
 
-    def get_activity(self, sections, platforms):
+    def get_activity(self, sections = None, platforms = None):
         """
         Notes:
             Points to :func:`AFSample.get_analyses`. See documentation there for details.
@@ -1571,7 +1571,17 @@ class AFSample(AutoFocusObject):
 
     def get_analyses(self, sections = None, platforms = None):
         """
+        Notes:
+            Calls the :func:`AFSample.get_analyses_by_hash` class method with the sample's sha256. See documentation
+            there for details.
+        """
+        return AFSample.get_analyses_by_hash(self.sha256, sections, platforms)
+
+    @classmethod
+    def get_analyses_by_hash(cls, sha256, sections = None, platforms = None):
+        """
         Args:
+            sha256 (str): The sample's sha256 for the related analyses to pull
             sections (Optional[array[str]]): The analysis sections desired. Can also be class objects for the
                 desired sections. Defaults to all possible sections.
             platforms (Optional[array[str]]): The analysis platforms desired. Defaults to all possible platforms.
@@ -1604,7 +1614,7 @@ class AFSample(AutoFocusObject):
 
                 post_data["sections"] = mapped_sections
 
-        resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", post_data = post_data).json()
+        resp_data = AutoFocusAPI._api_request("/sample/" + sha256 + "/analysis", post_data = post_data).json()
 
         analyses = []
 
