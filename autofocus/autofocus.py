@@ -309,7 +309,7 @@ class AutoFocusAPI(object):
                 # Retrying E101x errors, per Tarun Singh
                 try:
                     resp_data = resp.json()
-                    if resp_data['code'] in ("E1015", "E1016", "E1017") and e_code_skips < 3:
+                    if resp_data['code'] in ("E1015", "E1016", "E1017", "E1100") and e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                 except requests.ConnectionError as e:
                     if e_code_skips < 3:
@@ -1562,7 +1562,7 @@ class AFSample(AutoFocusObject):
         """
         return AFSampleFactory.get(hash)
 
-    def get_activity(self, sections, platforms):
+    def get_activity(self, sections = None, platforms = None):
         """
         Notes:
             Points to :func:`AFSample.get_analyses`. See documentation there for details.
@@ -1571,7 +1571,17 @@ class AFSample(AutoFocusObject):
 
     def get_analyses(self, sections = None, platforms = None):
         """
+        Notes:
+            Calls the :func:`AFSample.get_analyses_by_hash` class method with the sample's sha256. See documentation
+            there for details.
+        """
+        return AFSample.get_analyses_by_hash(self.sha256, sections, platforms)
+
+    @classmethod
+    def get_analyses_by_hash(cls, sha256, sections = None, platforms = None):
+        """
         Args:
+            sha256 (str): The sample's sha256 for the related analyses to pull
             sections (Optional[array[str]]): The analysis sections desired. Can also be class objects for the
                 desired sections. Defaults to all possible sections.
             platforms (Optional[array[str]]): The analysis platforms desired. Defaults to all possible platforms.
@@ -1604,7 +1614,12 @@ class AFSample(AutoFocusObject):
 
                 post_data["sections"] = mapped_sections
 
-        resp_data = AutoFocusAPI._api_request("/sample/" + self.sha256 + "/analysis", post_data = post_data).json()
+        try:
+            resp_data = AutoFocusAPI._api_request("/sample/" + sha256 + "/analysis", post_data = post_data).json()
+        except AFClientError as e:
+            if "Requested sample not found" in e.message:
+                raise AFSampleAbsent("No such sample in AutoFocus")
+            raise e
 
         analyses = []
 
