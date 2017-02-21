@@ -6,7 +6,7 @@ setup(
 
     name            =   "AutofocusClientLibrary",
     packages        =   ['autofocus'],
-    version         =   '1.1.2',
+    version         =   '1.1.3',
     description     =   'AutoFocus Client Lib',
     author          =   'Ben Small, Pat Litke, Russ Holloway, GSRT',
     author_email    =   'gsrt-tech@paloaltonetworks.com',

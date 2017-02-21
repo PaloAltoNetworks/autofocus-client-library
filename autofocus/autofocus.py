@@ -83,6 +83,9 @@ class GraduatingSleep(object):
 
     def sleep(self):
 
+        # TODO: FIX FIX FIX
+        return # Temporarily short circuiting. Have to do some more profiling to get this right with out negatively impacting the user
+
         # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
         # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
         # raise an exception
@@ -202,12 +205,14 @@ class AutoFocusObject(object):
         if depth == 0:
             return None
 
+        obj_attrs = {}
+
         # decide if we should include or not include attributes based on lazy loading
         blacklist = []
         for k in self.__dict__:
             if include_all:
                 # lazy load everything and include it
-                getattr(self, k)
+                obj_attrs[k] = getattr(self, k)
             else:
                 # don't include lazy loaded attributes
                 raw_value = super(AutoFocusObject, self).__getattribute__(k)
@@ -215,7 +220,7 @@ class AutoFocusObject(object):
                     blacklist.append(k)
 
         # serialize
-        for k, v in self.__dict__.items():
+        for k, v in obj_attrs.items():
 
             # ignore private and blacklisted
             if k.startswith("_") or k in blacklist:
