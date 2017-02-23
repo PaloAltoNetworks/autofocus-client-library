@@ -865,6 +865,9 @@ class AFSession(AutoFocusObject):
         - :func:`AFSession.search`
         """
 
+        #: str: The ID for the session
+        self.session_id = kwargs.get("session_id")
+
         #: str: The application this session activity was related to
         self.application = kwargs.get("app")
 
@@ -1155,7 +1158,7 @@ class AFSessionFactory(AutoFocusAPI):
         """
 
         for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order):
-            yield AFSession(**res['_source'])
+            yield AFSession(session_id = res.get('_id'), **res['_source'])
 
 
 class AFSampleFactory(AutoFocusAPI):
