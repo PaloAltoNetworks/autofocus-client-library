@@ -541,12 +541,6 @@ class AutoFocusAPI(object):
             for hit in res['hits']:
                 yield hit
 
-
-# TODO: Create a class for AFTag.refs
-class AFTagReference(AutoFocusObject):
-    pass
-
-
 class AFTagDefinition(AutoFocusObject):
     def __init__(self, **kwargs):
 
@@ -574,6 +568,28 @@ class AFTagDefinition(AutoFocusObject):
 
     def __str__(self):
         return self.ui_search_definition
+
+class AFTagReference(AutoFocusObject):
+
+    def __init__(self, **kwargs):
+
+        #: datetime: the time the reference was created
+        created = kwargs.get("created", None)
+        if created:
+            created = datetime.strptime(created, '%Y-%m-%dT%H:%M:%S')
+
+        #: str: source for the reference
+        self.source = kwargs.get("source", "").encode('utf8')
+
+        #: str: title of the reference
+        self.title = kwargs.get("title", "").encode('utf8')
+
+        #: str: url for the reference
+        self.url = kwargs.get("url", "").encode('utf8')
+
+
+    def __str__(self):
+        return self.url
 
 
 class AFTag(AutoFocusObject):
@@ -676,7 +692,21 @@ class AFTag(AutoFocusObject):
         self.comments = kwargs.get("comments", NotLoaded())
 
         #: List[str]: a list of references for the tag
-        self.references = kwargs.get("refs", NotLoaded())
+        self.references = NotLoaded()
+
+        #: Priveate _references
+        self._references = kwargs.get("refs", NotLoaded())
+
+        if type(self._references) in (str, unicode):
+            self.references = []
+            if not self._references == "null":
+                try:
+                    ref_data = json.loads(self._references)
+                    for v in ref_data:
+                        self.references.append(AFTagReference(**v))
+                except Exception as e:
+                    pass
+
 
         #: dict: a dictionary with comments in it? Don't we have comments above?
         #self.review = kwargs.get("review", NotLoaded())
@@ -689,12 +719,10 @@ class AFTag(AutoFocusObject):
         value = object.__getattribute__(self, attr)
 
         # Not offered in the list controller, have to call get to lazy load:
-        #      comments, refs, review, support_id
-        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_definitions') and \
+        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_definitions', 'references') and \
                 type(value) is NotLoaded:
 
             new_tag = AFTagFactory.get(self.public_name, use_cache=False)
-            #old_tag = self
 
             # Reloading the data via the get method
             self = new_tag
@@ -707,14 +735,13 @@ class AFTag(AutoFocusObject):
                     value.append(AFTagDefinition(**tag_definition))
                 self.tag_definitions = value
 
-            # Current data models are inconsistent, need to throw a warning about defaulting to None here
-            # TODO: Remove this once the objects returned by the REST service are made consistent.
+            # Current data models are inconsistent, need to throw a warning about defaulting to a false value here
             if type(value) is NotLoaded:
-                if attr == "related_tag_names":
+                if attr in ("related_tag_names", "tag_definitions", "references"):
                     value = []
                 else:
                     value = None
-                get_logger().warning("Unable to lazy load tag attribute, defaulting to None! tag:%s attribute:%s\n" % (self.public_name, attr))
+                get_logger().warning("Unable to lazy load tag attribute, defaulting to a false value! tag:%s attribute:%s\n" % (self.public_name, attr))
 
         return value
 
