@@ -8,6 +8,7 @@ import re
 import time
 from datetime import datetime, date
 
+import configparser
 import requests
 
 from .exceptions import GrauduatingSleepError, AFRedirectError, AFClientError, AFServerError, \
@@ -31,26 +32,45 @@ def get_logger():
 AF_APIKEY = None
 SHOW_WARNINGS = False
 
-try:
-    import configparser
 
+# TODO: Get rid of global settings?
+def set_global_config(filename=None):
     parser = configparser.ConfigParser()
-    conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
+    section_name = "autofocus"
+
+    if filename is None:
+        conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
+    else:
+        conf_path = filename
+
+    if not os.path.exists(os.path.expanduser(conf_path)):
+        return
+
     parser.read(os.path.expanduser(conf_path))
-    AF_APIKEY = parser.get("autofocus", "apikey")
-    try:
-        ignore_warnings = parser.getboolean("autofocus", "ignore_warnings")
-        SHOW_WARNINGS = False if ignore_warnings else True
-    except:
-        SHOW_WARNINGS = False
+    if not parser.has_section(section_name):
+        return
+
+    if parser.has_option(section_name, "apikey"):
+        global AF_APIKEY
+        AF_APIKEY = parser.get(section_name, "apikey")
+
+    if parser.has_option(section_name, "ignore_warnings"):
+        global SHOW_WARNINGS
+        SHOW_WARNINGS = parser.getboolean(section_name, "ignore_warnings")
 
     if SHOW_WARNINGS:
         get_logger().setLevel(logging.WARNING)
     else:
         get_logger().setLevel(logging.ERROR)
+
+
+try:
+    set_global_config()
 except:
-    get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
-                         "manually before utilizing the API\n")
+    # get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
+    #                      "manually before utilizing the API\n")
+    # ignore broken configuration files, should not raise exception on import.
+    pass
 
 # Useful information:
 #
