@@ -1,69 +1,65 @@
-from autofocus import AFAnalysisSummary
-from autofocus import AFApkSuspiciousPattern
-from autofocus import AFApkEmbeddedFile
-from autofocus import AFApiActivity
-from autofocus import AFApkActivityAnalysis
-from autofocus import AFApkAppName
-from autofocus import AFApkCertificate
-from autofocus import AFApkEmbededUrlAnalysis
-from autofocus import AFApkIcon
-from autofocus import AFApkIntentFilterAnalysis
-from autofocus import AFApkPackage
-from autofocus import AFApkEmbeddedLibrary
-from autofocus import AFApkRepackaged
-from autofocus import AFApkReceiverAnalysis
-from autofocus import AFApkRepackaged
-from autofocus import AFApkRequestedPermissionAnalysis
-from autofocus import AFApkSensitiveApiCallAnalysis
-from autofocus import AFApkSensorAnalysis
-from autofocus import AFApkServiceAnalysis
-from autofocus import AFApkSuspiciousActivitySummary
-from autofocus import AFApkSuspiciousApiCallAnalysis
-from autofocus import AFApkSuspiciousFileAnalysis
-from autofocus import AFApkSuspiciousStringAnalysis
-from autofocus import AFApkVersion
-from autofocus import AFBehaviorAnalysis
-from autofocus import AFBehaviorTypeAnalysis
-from autofocus import AFClientError
-from autofocus import AFConnectionActivity
-from autofocus import AFDigitalSigner
-from autofocus import AFDnsActivity
-from autofocus import AFFileActivity
-from autofocus import AFHttpActivity
-from autofocus import AFJavaApiActivity
-from autofocus import AFMacEmbeddedURL
-from autofocus import AFMacEmbeddedFile
-from autofocus import AFMutexActivity
-from autofocus import AFProcessActivity
-from autofocus import AFRedirectError
-from autofocus import AFRegistryActivity
-from autofocus import AFSample
-from autofocus import AFSampleAbsent
-from autofocus import AFSampleFactory
-from autofocus import AFServerError
-from autofocus import AFServiceActivity
-from autofocus import AFSession
-from autofocus import AFSessionFactory
-from autofocus import AFTag
-from autofocus import AFTagDefinition
-from autofocus import AFTagAbsent
-from autofocus import AFTagCache
-from autofocus import AFTagFactory
-from autofocus import AFTagReference
-from autofocus import AFUserAgentFragment
-from autofocus import AutoFocusAPI
-from autofocus import AutoFocusAnalysis
-from autofocus import AutoFocusException
-from autofocus import AutoFocusObject
-from autofocus import GrauduatingSleepError
+from autofocus.exceptions import GrauduatingSleepError, AutoFocusException, AFRedirectError, AFClientError, \
+    AFServerError, AFSampleAbsent, AFTagAbsent
+from autofocus.api import AFApiActivity
+from autofocus.api import AFApkActivityAnalysis
+from autofocus.api import AFApkAppName
+from autofocus.api import AFApkCertificate
+from autofocus.api import AFApkEmbeddedFile
+from autofocus.api import AFApkEmbeddedLibrary
+from autofocus.api import AFApkEmbededUrlAnalysis
+from autofocus.api import AFApkIcon
+from autofocus.api import AFApkIntentFilterAnalysis
+from autofocus.api import AFApkPackage
+from autofocus.api import AFApkReceiverAnalysis
+from autofocus.api import AFApkRepackaged
+from autofocus.api import AFApkRepackaged
+from autofocus.api import AFApkRequestedPermissionAnalysis
+from autofocus.api import AFApkSensitiveApiCallAnalysis
+from autofocus.api import AFApkSensorAnalysis
+from autofocus.api import AFApkServiceAnalysis
+from autofocus.api import AFApkSuspiciousActivitySummary
+from autofocus.api import AFApkSuspiciousApiCallAnalysis
+from autofocus.api import AFApkSuspiciousFileAnalysis
+from autofocus.api import AFApkSuspiciousPattern
+from autofocus.api import AFApkSuspiciousStringAnalysis
+from autofocus.api import AFApkVersion
+from autofocus.api import AFBehaviorAnalysis
+from autofocus.api import AFBehaviorTypeAnalysis
+from autofocus.api import AFClientError
+from autofocus.api import AFConnectionActivity
+from autofocus.api import AFDigitalSigner
+from autofocus.api import AFDnsActivity
+from autofocus.api import AFFileActivity
+from autofocus.api import AFHttpActivity
+from autofocus.api import AFJavaApiActivity
+from autofocus.api import AFMacEmbeddedFile
+from autofocus.api import AFMacEmbeddedURL
+from autofocus.api import AFMutexActivity
+from autofocus.api import AFProcessActivity
+from autofocus.api import AFRegistryActivity
+from autofocus.api import AFSample
+from autofocus.api import AFSampleFactory
+from autofocus.api import AFServiceActivity
+from autofocus.api import AFSession
+from autofocus.api import AFSessionFactory
+from autofocus.api import AFTag
+from autofocus.api import AFTagCache
+from autofocus.api import AFTagDefinition
+from autofocus.api import AFTagFactory
+from autofocus.api import AFTagReference
+from autofocus.api import AFUserAgentFragment
+from autofocus.api import AutoFocusAPI
+from autofocus.api import AutoFocusAnalysis
+from autofocus.api import AutoFocusObject
 
-_ALL_ = [
+_all_ = [
+    "AutoFocusException"
     "AFAnalysisSummary",
     "AFApiActivity",
     "AFApkActivityAnalysis",
     "AFApkAppName",
     "AFApkCertificate",
-    "AFApkEmbededUrlAnalysis",
+    "AFApkEmbeddedUrlAnalysis",
     "AFApkIcon"
     "AFApkIntentFilterAnalysis",
     "AFApkPackage",

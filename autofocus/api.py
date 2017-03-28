@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 import decimal
 import json
+import logging
 import math
 import os
 import re
-import requests
 import time
-import logging
-from logging import StreamHandler
 from datetime import datetime, date
+
+import requests
+
+from .exceptions import GrauduatingSleepError, AFRedirectError, AFClientError, AFServerError, \
+    AFSampleAbsent, AFTagAbsent
+from .exceptions import _InvalidSampleData, _InvalidAnalysisData
 
 
 def get_logger():
@@ -29,6 +33,7 @@ SHOW_WARNINGS = False
 
 try:
     import ConfigParser
+
     parser = ConfigParser.ConfigParser()
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
     parser.read(os.path.expanduser(conf_path))
@@ -46,7 +51,6 @@ try:
 except:
     get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
                          "manually before utilizing the API\n")
-
 
 # Useful information:
 #
@@ -66,25 +70,18 @@ _class_analysis_map = {}
 _base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 
 
-class GrauduatingSleepError(Exception):
-    pass
-
-
 class GraduatingSleep(object):
-
     init_sleep_duration = .1
     max_sleep_duration = 600
 
     def __init__(self):
-
         self.counter = 0
 
         self.total_sleep_time = 0
 
     def sleep(self):
-
         # TODO: FIX FIX FIX
-        return # Temporarily short circuiting. Have to do some more profiling to get this right with out negatively impacting the user
+        return  # Temporarily short circuiting. Have to do some more profiling to get this right with out negatively impacting the user
 
         # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
         # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
@@ -106,81 +103,6 @@ class NotLoaded(object):
     """
     NotLoaded is a class used internally by various classes in this module for handling when an attribute needs to be
     lazy loaded. This class is not meant for general use.
-    """
-    pass
-
-
-class AutoFocusException(Exception):
-    pass
-
-
-class AFRedirectError(AutoFocusException):
-    """
-    Notes:
-        AFRedirectError is an exception that's thrown when the client library is being redirected. All URLs should be
-        direct and not require a redirect
-    Args:
-        message (str): Message describing the error
-        response (requests.Response): The response from the server in the case of on invalid request
-    """
-    def __init__(self, message, response):
-        #: str: a message describing the error
-        self.message = message
-        #: requests.Response: response from the server
-        self.response = response
-
-
-class AFClientError(AutoFocusException):
-    """
-    Notes:
-        AFClientError is an exception that's thrown when the client library is either used improperly, or offers invalid
-        data to the AutoFocus REST service
-    Args:
-        message (str): Message describing the error
-        Optional[requests.Response] response: the response from the server in the case of on invalid request
-    """
-    def __init__(self, message, response = None):
-        super(AFClientError, self).__init__(self, message)
-        #: str: a message describing the error
-        self.message = message
-        #: Optional[requests.Response]: response from the server (May be None)
-        self.response = response
-
-
-class AFServerError(AutoFocusException):
-    """
-    Notes:
-        AFServerError is an exception that's thrown when the AutoFocus REST service behaves unexpectedly
-    Args:
-        message (str): Message describing the error
-        response (requests.Response): the response from the server in the case of on invalid request
-    """
-    def __init__(self, message, response):
-        super(AFServerError, self).__init__(self, message)
-        #: str: a message describing the error
-        self.message = message
-        #: requests.Response: response from the server
-        self.response = response
-
-
-class AFSampleAbsent(AutoFocusException, KeyError):
-    pass
-
-
-class AFTagAbsent(AutoFocusException, KeyError):
-    pass
-
-
-class _InvalidSampleData(Exception):
-    """
-    Private class meant to be used for skipping bad sample rows
-    """
-    pass
-
-
-class _InvalidAnalysisData(Exception):
-    """
-    Private class meant to be used for skipping bad analysis data rows
     """
     pass
 
@@ -275,7 +197,7 @@ class AutoFocusAPI(object):
         return self.__dict__.__str__()
 
     @classmethod
-    def _api_request(cls, path, post_data = {}, params = {}, e_code_skips = 0, af_cookie = None):
+    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None):
 
         if not AutoFocusAPI.api_key:
             AutoFocusAPI.api_key = AF_APIKEY
@@ -291,8 +213,8 @@ class AutoFocusAPI(object):
         }
 
         get_logger().debug("Request [%s]: %s", _base_url + path, post_data)
-        resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
-                             allow_redirects = False)
+        resp = requests.post(_base_url + path, params=params, headers=headers, data=json.dumps(post_data),
+                             allow_redirects=False)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
@@ -336,7 +258,7 @@ class AutoFocusAPI(object):
         post_data['from'] = 0
 
         init_query_time = time.time()
-        init_query_resp = cls._api_request(path, post_data = post_data)
+        init_query_resp = cls._api_request(path, post_data=post_data)
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
@@ -346,7 +268,7 @@ class AutoFocusAPI(object):
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
-            resp = cls._api_request(request_url, af_cookie = af_cookie)
+            resp = cls._api_request(request_url, af_cookie=af_cookie)
 
             # Look for malformed JSON
             try:
@@ -370,19 +292,19 @@ class AutoFocusAPI(object):
 
         actual_res_count = 0
 
-        init_query_resp = cls._api_request(path, post_data = post_data)
+        init_query_resp = cls._api_request(path, post_data=post_data)
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
         sleeper = GraduatingSleep()
 
-        #prev_resp_data = {}
+        # prev_resp_data = {}
 
         while True:
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
-            resp = cls._api_request(request_url, af_cookie = af_cookie)
+            resp = cls._api_request(request_url, af_cookie=af_cookie)
 
             # Look for malformed JSON
             try:
@@ -409,12 +331,15 @@ class AutoFocusAPI(object):
             if not resp_data['af_in_progress']:
 
                 if 'total' not in resp_data:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, query complete but no total information in resp".format(af_cookie), resp)
+                    raise AFServerError(
+                        "AF_COOKIE - {}\nServer sent malformed response, query complete but no total information in resp".format(
+                            af_cookie), resp)
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
-                    raise AFServerError("AF_COOKIE - {}\nExpecting {} results, but actually got {} while scanning".format(
-                        af_cookie, resp_data['total'], actual_res_count), resp)
+                    raise AFServerError(
+                        "AF_COOKIE - {}\nExpecting {} results, but actually got {} while scanning".format(
+                            af_cookie, resp_data['total'], actual_res_count), resp)
                 raise StopIteration()
 
             try:
@@ -439,13 +364,13 @@ class AutoFocusAPI(object):
                 if post_data['from'] + post_data['size'] > 4000:
                     post_data['size'] = 4000 - post_data['from']
 
-            init_query_resp = cls._api_request(path, post_data = post_data)
+            init_query_resp = cls._api_request(path, post_data=post_data)
             init_query_data = init_query_resp.json()
             post_data['from'] += post_data['size']
             af_cookie = init_query_data['af_cookie']
 
             resp_data = {}
-            #prev_resp_data = {}
+            # prev_resp_data = {}
 
             sleeper = GraduatingSleep()
 
@@ -453,18 +378,21 @@ class AutoFocusAPI(object):
 
                 request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
-                resp = cls._api_request(request_url, af_cookie = af_cookie)
+                resp = cls._api_request(request_url, af_cookie=af_cookie)
 
                 # Look for malformed JSON
                 try:
                     resp_data = resp.json()
                 except:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
+                    raise AFServerError(
+                        "AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
                 # We should always have 'af_in_progress' in resp_data.
                 # 'total' in the resp_data
                 if 'af_in_progress' not in resp_data:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(af_cookie), resp)
+                    raise AFServerError(
+                        "AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(af_cookie),
+                        resp)
 
                 # If we've gotten our bucket size worth of data, or the query has complete
                 if len(resp_data.get('hits', [])) == post_data['size'] \
@@ -485,7 +413,7 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _prep_post_data(cls, query, scope, size = None, sort_by = None, sort_dir = None):
+    def _prep_post_data(cls, query, scope, size=None, sort_by=None, sort_dir=None):
 
         post_data = {}
 
@@ -524,7 +452,7 @@ class AutoFocusAPI(object):
     @classmethod
     def _api_scan(cls, path, query, scope, page_size):
 
-        post_data = cls._prep_post_data(query, scope, size = page_size)
+        post_data = cls._prep_post_data(query, scope, size=page_size)
 
         post_data['type'] = "scan"
 
@@ -535,15 +463,15 @@ class AutoFocusAPI(object):
     @classmethod
     def _api_search(cls, path, query, scope, sort_by, sort_dir):
 
-        post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir)
+        post_data = cls._prep_post_data(query, scope, sort_by=sort_by, sort_dir=sort_dir)
 
         for res in cls._api_search_request(path, post_data):
             for hit in res['hits']:
                 yield hit
 
+
 class AFTagDefinition(AutoFocusObject):
     def __init__(self, **kwargs):
-
         #: int: count of search results
         self.count = kwargs["count"]
 
@@ -569,10 +497,9 @@ class AFTagDefinition(AutoFocusObject):
     def __str__(self):
         return self.ui_search_definition
 
+
 class AFTagReference(AutoFocusObject):
-
     def __init__(self, **kwargs):
-
         #: datetime: the time the reference was created
         created = kwargs.get("created", None)
         if created:
@@ -586,7 +513,6 @@ class AFTagReference(AutoFocusObject):
 
         #: str: url for the reference
         self.url = kwargs.get("url", "").encode('utf8')
-
 
     def __str__(self):
         return self.url
@@ -707,9 +633,8 @@ class AFTag(AutoFocusObject):
                 except Exception as e:
                     pass
 
-
         #: dict: a dictionary with comments in it? Don't we have comments above?
-        #self.review = kwargs.get("review", NotLoaded())
+        # self.review = kwargs.get("review", NotLoaded())
 
         #: int: The support id for the tag
         self.support_id = kwargs.get("support_id", NotLoaded())
@@ -719,8 +644,9 @@ class AFTag(AutoFocusObject):
         value = object.__getattribute__(self, attr)
 
         # Not offered in the list controller, have to call get to lazy load:
-        if attr in ('comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_definitions', 'references') and \
-                type(value) is NotLoaded:
+        if attr in (
+        'comments', 'references', 'review', 'support_id', 'related_tag_names', 'tag_definitions', 'references') and \
+                        type(value) is NotLoaded:
 
             new_tag = AFTagFactory.get(self.public_name, use_cache=False)
 
@@ -741,7 +667,9 @@ class AFTag(AutoFocusObject):
                     value = []
                 else:
                     value = None
-                get_logger().warning("Unable to lazy load tag attribute, defaulting to a false value! tag:%s attribute:%s\n" % (self.public_name, attr))
+                get_logger().warning(
+                    "Unable to lazy load tag attribute, defaulting to a false value! tag:%s attribute:%s\n" % (
+                    self.public_name, attr))
 
         return value
 
@@ -793,7 +721,6 @@ class AFTag(AutoFocusObject):
 
 
 class AFTagCache(object):
-
     _cache = {}
 
     @classmethod
@@ -832,7 +759,7 @@ class AFTagFactory(AutoFocusAPI):
 
         results = []
 
-        resp_data = cls._api_request("/tags/", post_data = kwargs).json()
+        resp_data = cls._api_request("/tags/", post_data=kwargs).json()
 
         for tag_data in resp_data['tags']:
             results.append(AFTagCache.add(AFTag(**tag_data)))
@@ -846,7 +773,7 @@ class AFTagFactory(AutoFocusAPI):
 
             kwargs['pageNum'] += 1
 
-            resp_data = cls._api_request("/tags/", post_data = kwargs).json()
+            resp_data = cls._api_request("/tags/", post_data=kwargs).json()
 
             for tag_data in resp_data['tags']:
                 tag = AFTagCache.add(AFTag(**tag_data))
@@ -855,7 +782,7 @@ class AFTagFactory(AutoFocusAPI):
         return results
 
     @classmethod
-    def get(cls, tag_name, use_cache = True):
+    def get(cls, tag_name, use_cache=True):
         """
         Notes: See AFTag.get for documentation
         """
@@ -884,7 +811,6 @@ class AFTagFactory(AutoFocusAPI):
 
 
 class AFSession(AutoFocusObject):
-
     def __init__(self, **kwargs):
         """
         The AFSession should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
@@ -996,7 +922,7 @@ class AFSession(AutoFocusObject):
         self._vsys = kwargs.get("vsys")
 
     @classmethod
-    def scan(cls, query, page_size = 10000):
+    def scan(cls, query, page_size=10000):
         """
 
         The AFSession.scan method is a factory to return AFSession object instances. These correspond to values returned
@@ -1100,7 +1026,7 @@ class AFSession(AutoFocusObject):
         return AFSessionFactory.count(query)
 
     @classmethod
-    def search(cls, query, sort_by = "tstamp", sort_order = "asc"):
+    def search(cls, query, sort_by="tstamp", sort_order="asc"):
         """
 
         The AFSession.search method is a factory to return AFSession object instances.
@@ -1185,7 +1111,7 @@ class AFSessionFactory(AutoFocusAPI):
         """
 
         for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order):
-            yield AFSession(session_id = res.get('_id'), **res['_source'])
+            yield AFSession(session_id=res.get('_id'), **res['_source'])
 
 
 class AFSampleFactory(AutoFocusAPI):
@@ -1259,7 +1185,6 @@ class AFSampleFactory(AutoFocusAPI):
 
 
 class AFSample(AutoFocusObject):
-
     def __init__(self, **kwargs):
         """
         The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
@@ -1276,7 +1201,7 @@ class AFSample(AutoFocusObject):
         for k, v in kwargs.items():
             if k not in known_attributes:
                 pass
-                #sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
+                # sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
 
         #: str: md5 sum of the sample
         self.md5 = kwargs.get('md5', None)
@@ -1328,7 +1253,7 @@ class AFSample(AutoFocusObject):
         #: datetime: The time the sample was first seen by the system
         self.create_date = kwargs['create_date']
 
-        #Below are our verdict predefined meaning:
+        # Below are our verdict predefined meaning:
         # benign : 0
         # malware : 1
         # grayware: 2
@@ -1391,7 +1316,6 @@ class AFSample(AutoFocusObject):
             value = []
 
             for tag_name in self._tags:
-
                 # TODO: Consider what might happen here if the tagname isn't in the DB
                 value.append(AFTag.get(tag_name))
 
@@ -1400,7 +1324,7 @@ class AFSample(AutoFocusObject):
         return value
 
     @classmethod
-    def count(cls, query, scope = "global"):
+    def count(cls, query, scope="global"):
         """
 
         The AFSample.count method returns the total number of samples matching the query for the given scope
@@ -1451,7 +1375,7 @@ class AFSample(AutoFocusObject):
         return AFSampleFactory.count(query, scope)
 
     @classmethod
-    def scan(cls, query, scope = "global", page_size = 10000):
+    def scan(cls, query, scope="global", page_size=10000):
         """
 
         The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
@@ -1508,7 +1432,7 @@ class AFSample(AutoFocusObject):
             yield sample
 
     @classmethod
-    def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc"):
+    def search(cls, query, scope="global", sort_by="create_date", sort_order="asc"):
         """
 
         The AFSample.search method is a factory to return AFSample object instances. These correspond to values returned
@@ -1597,14 +1521,14 @@ class AFSample(AutoFocusObject):
         """
         return AFSampleFactory.get(hash)
 
-    def get_activity(self, sections = None, platforms = None):
+    def get_activity(self, sections=None, platforms=None):
         """
         Notes:
             Points to :func:`AFSample.get_analyses`. See documentation there for details.
         """
         return self.get_analyses(sections, platforms)
 
-    def get_analyses(self, sections = None, platforms = None):
+    def get_analyses(self, sections=None, platforms=None):
         """
         Notes:
             Calls the :func:`AFSample.get_analyses_by_hash` class method with the sample's sha256. See documentation
@@ -1613,7 +1537,7 @@ class AFSample(AutoFocusObject):
         return AFSample.get_analyses_by_hash(self.sha256, sections, platforms)
 
     @classmethod
-    def get_analyses_by_hash(cls, sha256, sections = None, platforms = None):
+    def get_analyses_by_hash(cls, sha256, sections=None, platforms=None):
         """
         Args:
             sha256 (str): The sample's sha256 for the related analyses to pull
@@ -1650,7 +1574,7 @@ class AFSample(AutoFocusObject):
                 post_data["sections"] = mapped_sections
 
         try:
-            resp_data = AutoFocusAPI._api_request("/sample/" + sha256 + "/analysis", post_data = post_data).json()
+            resp_data = AutoFocusAPI._api_request("/sample/" + sha256 + "/analysis", post_data=post_data).json()
         except AFClientError as e:
             if "Requested sample not found" in e.message:
                 raise AFSampleAbsent("No such sample in AutoFocus")
@@ -1667,7 +1591,7 @@ class AFSample(AutoFocusObject):
                         section))
                 continue
 
-            #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
+            # for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
             for platform in resp_data[section].keys():
                 for data in resp_data[section][platform]:
                     # TODO: remove try catch when all analyses types are normalized
@@ -1704,7 +1628,6 @@ class AFSample(AutoFocusObject):
 
 
 class AutoFocusAnalysis(AutoFocusObject):
-
     def __init__(self, obj_data):
         for k, v in obj_data.items():
             setattr(self, k, v)
@@ -1714,11 +1637,9 @@ class AutoFocusAnalysis(AutoFocusObject):
         return cls(resp_data)
 
 
-#apk_defined_activity
+# apk_defined_activity
 class AFApkActivityAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, activity, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1736,18 +1657,16 @@ class AFApkActivityAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, activity_data):
-
         line_parts = activity_data['line'].split(" , ")
         (activity) = line_parts[0]
-        (benign_c, malware_c, grayware_c) = (activity_data.get('b', 0), activity_data.get('m', 0), activity_data.get('g', 0))
+        (benign_c, malware_c, grayware_c) = (
+        activity_data.get('b', 0), activity_data.get('m', 0), activity_data.get('g', 0))
         return cls(platform, activity, benign_c, malware_c, grayware_c)
 
 
-#apk_defined_intent_filter
+# apk_defined_intent_filter
 class AFApkIntentFilterAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, intent, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1765,18 +1684,15 @@ class AFApkIntentFilterAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, intent_data):
-
         line_parts = intent_data['line'].split(" , ")
         (intent) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (intent_data.get('b', 0), intent_data.get('m', 0), intent_data.get('g', 0))
         return cls(platform, intent, benign_c, malware_c, grayware_c)
 
 
-#apk_defined_receiver
+# apk_defined_receiver
 class AFApkReceiverAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, receiver, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1794,18 +1710,15 @@ class AFApkReceiverAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, rcv_data):
-
         line_parts = rcv_data['line'].split(" , ")
         (receiver) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (rcv_data.get('b', 0), rcv_data.get('m', 0), rcv_data.get('g', 0))
         return cls(platform, receiver, benign_c, malware_c, grayware_c)
 
 
-#apk_suspicious_action_monitored
+# apk_suspicious_action_monitored
 class AFApkSuspiciousActivitySummary(AutoFocusAnalysis):
-
     def __init__(self, platform, description, detail, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1826,18 +1739,15 @@ class AFApkSuspiciousActivitySummary(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (description, detail) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, description, detail, benign_c, malware_c, grayware_c)
 
 
-#apk_packagename
+# apk_packagename
 class AFApkPackage(AutoFocusAnalysis):
-
     def __init__(self, platform, name, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1855,18 +1765,15 @@ class AFApkPackage(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (name) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, name, benign_c, malware_c, grayware_c)
 
 
-#apk_embedded_library
+# apk_embedded_library
 class AFApkEmbeddedLibrary(AutoFocusAnalysis):
-
     def __init__(self, platform, name, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1884,17 +1791,15 @@ class AFApkEmbeddedLibrary(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (name) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, name, benign_c, malware_c, grayware_c)
 
-#apk_app_icon
+
+# apk_app_icon
 class AFApkIcon(AutoFocusAnalysis):
-
     def __init__(self, platform, path, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1912,18 +1817,15 @@ class AFApkIcon(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (path) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, path, benign_c, malware_c, grayware_c)
 
 
-#version
+# version
 class AFApkVersion(AutoFocusAnalysis):
-
     def __init__(self, platform, version, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1941,7 +1843,6 @@ class AFApkVersion(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (version) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
@@ -1950,9 +1851,7 @@ class AFApkVersion(AutoFocusAnalysis):
 
 # apk_digital_signer
 class AFDigitalSigner(AutoFocusAnalysis):
-
     def __init__(self, platform, signer, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -1970,18 +1869,15 @@ class AFDigitalSigner(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (signer) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, signer, benign_c, malware_c, grayware_c)
 
 
-#summary
+# summary
 class AFApkEmbeddedFile(AutoFocusAnalysis):
-
     def __init__(self, platform, type, sha256, file_path, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2005,7 +1901,6 @@ class AFApkEmbeddedFile(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (type, file_path, sha256) = line_parts[0:3]
         sha256 = sha256.split("=")[-1]
@@ -2013,11 +1908,9 @@ class AFApkEmbeddedFile(AutoFocusAnalysis):
         return cls(platform, type, sha256, file_path, benign_c, malware_c, grayware_c)
 
 
-#summary
+# summary
 class AFAnalysisSummary(AutoFocusAnalysis):
-
     def __init__(self, platform, summary, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2035,18 +1928,15 @@ class AFAnalysisSummary(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (summary) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, summary, benign_c, malware_c, grayware_c)
 
 
-#apk_suspcious_pattern
+# apk_suspcious_pattern
 class AFApkSuspiciousPattern(AutoFocusAnalysis):
-
     def __init__(self, platform, description, pattern, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2067,18 +1957,15 @@ class AFApkSuspiciousPattern(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (description, pattern) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, description, pattern, benign_c, malware_c, grayware_c)
 
 
-#apk_app_name
+# apk_app_name
 class AFApkAppName(AutoFocusAnalysis):
-
     def __init__(self, platform, name, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2096,18 +1983,15 @@ class AFApkAppName(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (name) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, name, benign_c, malware_c, grayware_c)
 
 
-#summary
+# summary
 class AFApkRepackaged(AutoFocusAnalysis):
-
     def __init__(self, platform, repackaged, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2125,22 +2009,21 @@ class AFApkRepackaged(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (repackaged) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, repackaged, benign_c, malware_c, grayware_c)
 
 
-#apk_certificate_id
-#apk_cert_file
+# apk_certificate_id
+# apk_cert_file
 class AFApkCertificate(AutoFocusAnalysis):
     """This class combines both apk_cert_file and apk_certificated_id analysis sections. Some samples only have
     apk_certificate_id, resulting in an object that only has an md5 sum, and the rest of hte attributes being null
     """
 
-    def __init__(self, platform, benign, malware, grayware, md5, sha1 = None, sha256 = None, file_path = None,
-                 owner = None, issuer = None):
+    def __init__(self, platform, benign, malware, grayware, md5, sha1=None, sha256=None, file_path=None,
+                 owner=None, issuer=None):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -2178,11 +2061,13 @@ class AFApkCertificate(AutoFocusAnalysis):
         # If this an apk_certificate_id record, it will just be the md5
         if len(sensor_data['line']) == 32:
             (md5) = sensor_data['line']
-            (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
-            return cls(platform, benign_c, malware_c, grayware_c, md5 = md5)
+            (benign_c, malware_c, grayware_c) = (
+            sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+            return cls(platform, benign_c, malware_c, grayware_c, md5=md5)
 
-        fields_match = re.search("certificate , ([^,]+) , owner=(.*) , issuer=(.*) , md5=(\S+) , sha1=(\S+) , sha256=(\S+)",
-                                 sensor_data['line'])
+        fields_match = re.search(
+            "certificate , ([^,]+) , owner=(.*) , issuer=(.*) , md5=(\S+) , sha1=(\S+) , sha256=(\S+)",
+            sensor_data['line'])
 
         if not fields_match:
             raise _InvalidAnalysisData
@@ -2192,15 +2077,13 @@ class AFApkCertificate(AutoFocusAnalysis):
         # If this is the apk_cert_file record, it will have more details
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, benign_c, malware_c, grayware_c,
-                   file_path = file_path, md5 = md5, sha1 = sha1, sha256 = sha256,
-                   owner = owner, issuer = issuer)
+                   file_path=file_path, md5=md5, sha1=sha1, sha256=sha256,
+                   owner=owner, issuer=issuer)
 
 
-#mac_embedded_url
+# mac_embedded_url
 class AFMacEmbeddedURL(AutoFocusAnalysis):
-
     def __init__(self, platform, url, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2218,16 +2101,14 @@ class AFMacEmbeddedURL(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (url) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, url, benign_c, malware_c, grayware_c)
 
 
-#mac_embedded_file
+# mac_embedded_file
 class AFMacEmbeddedFile(AutoFocusAnalysis):
-
     def __init__(self, kwargs):
 
         #: str: The platform the sample analysis is from
@@ -2294,11 +2175,9 @@ class AFMacEmbeddedFile(AutoFocusAnalysis):
         return ma
 
 
-#apk_defined_sensor
+# apk_defined_sensor
 class AFApkSensorAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, sensor, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2316,18 +2195,15 @@ class AFApkSensorAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
-
         line_parts = sensor_data['line'].split(" , ")
         (sensor) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, sensor, benign_c, malware_c, grayware_c)
 
 
-#apk_defined_service
+# apk_defined_service
 class AFApkServiceAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, service, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2345,18 +2221,15 @@ class AFApkServiceAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, svc_data):
-
         line_parts = svc_data['line'].split(" , ")
         (service) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (svc_data.get('b', 0), svc_data.get('m', 0), svc_data.get('g', 0))
         return cls(platform, service, benign_c, malware_c, grayware_c)
 
 
-#apk_embeded_url
+# apk_embeded_url
 class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, url, disasm_file_path, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2377,18 +2250,15 @@ class AFApkEmbededUrlAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, perm_data):
-
         line_parts = perm_data['line'].split(" , ")
         (url, disasm_file_path) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (perm_data.get('b', 0), perm_data.get('m', 0), perm_data.get('g', 0))
         return cls(platform, url, disasm_file_path, benign_c, malware_c, grayware_c)
 
 
-#apk_requested_permission
+# apk_requested_permission
 class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, permission, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2406,18 +2276,15 @@ class AFApkRequestedPermissionAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, perm_data):
-
         line_parts = perm_data['line'].split(" , ")
         (permission) = line_parts[0]
         (benign_c, malware_c, grayware_c) = (perm_data.get('b', 0), perm_data.get('m', 0), perm_data.get('g', 0))
         return cls(platform, permission, benign_c, malware_c, grayware_c)
 
 
-#apk_sensitive_api_call
+# apk_sensitive_api_call
 class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, class_, method, disasm_file_path, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2441,7 +2308,6 @@ class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, api_data):
-
         line_parts = api_data['line'].split(" , ")
         (class_, method) = line_parts[0].split(";->")
         class_ = class_.replace("/", ".")
@@ -2452,11 +2318,9 @@ class AFApkSensitiveApiCallAnalysis(AutoFocusAnalysis):
         return cls(platform, class_, method, disasm_file_path, benign_c, malware_c, grayware_c)
 
 
-#apk_suspicious_api_call
+# apk_suspicious_api_call
 class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, class_, method, disasm_file_path, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2480,7 +2344,6 @@ class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, api_data):
-
         line_parts = api_data['line'].split(" , ")
         (class_, method) = line_parts[0].split(";->")
         class_ = class_.replace("/", ".")
@@ -2491,11 +2354,9 @@ class AFApkSuspiciousApiCallAnalysis(AutoFocusAnalysis):
         return cls(platform, class_, method, disasm_file_path, benign_c, malware_c, grayware_c)
 
 
-#apk_suspicious_file
+# apk_suspicious_file
 class AFApkSuspiciousFileAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, file_path, file_type, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2516,18 +2377,15 @@ class AFApkSuspiciousFileAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, file_data):
-
         line_parts = file_data['line'].split(" , ")
         (file_path, file_type) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
         return cls(platform, file_path, file_type, benign_c, malware_c, grayware_c)
 
 
-#apk_suspicious_string
+# apk_suspicious_string
 class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, string, file_name, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2548,19 +2406,16 @@ class AFApkSuspiciousStringAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, string_data):
-
         line_parts = string_data['line'].split(" , ")
         (string, file_name) = line_parts[0:2]
         (benign_c, malware_c, grayware_c) = (string_data.get('b', 0), string_data.get('m', 0), string_data.get('g', 0))
         return cls(platform, string, file_name, benign_c, malware_c, grayware_c)
 
 
-#behavior
+# behavior
 # {u'line': u'informational , 0.1 , A process running on the system may start additional processes to perform actions in the background. This behavior is common to legitimate software as well as malware. , process , 6 , Started a process'}
 class AFBehaviorAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, risk, description):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2572,7 +2427,6 @@ class AFBehaviorAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, behavior_data):
-
         line_parts = behavior_data['line'].split(" , ")
         (risk, description) = [line_parts[i] for i in [0, 2]]
 
@@ -2581,11 +2435,9 @@ class AFBehaviorAnalysis(AutoFocusAnalysis):
         return ba
 
 
-#behavior_type
+# behavior_type
 class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
-
     def __init__(self, platform, behavior):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2594,15 +2446,13 @@ class AFBehaviorTypeAnalysis(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, conn_data):
-
         ba = cls(platform, conn_data['line'])
 
         return ba
 
 
-#connection
+# connection
 class AFConnectionActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code,
                  benign, malware, grayware):
 
@@ -2651,6 +2501,7 @@ class AFConnectionActivity(AutoFocusAnalysis):
      - <process name>, <proto>-listening, RecvFrom, <Integer>
      - <process name>, <proto>-listening, Recv, <Integer>
     """
+
     @classmethod
     def _parse_auto_focus_response(cls, platform, conn_data):
 
@@ -2698,16 +2549,16 @@ class AFConnectionActivity(AutoFocusAnalysis):
                     dst_ip = None
             else:
                 pass
-                #TODO remove this and throw an exception when we are confident about our normalization
-                #sys.stderr.write("Unknown connection action {} -- tell BSMALL\n".format(action))
+                # TODO remove this and throw an exception when we are confident about our normalization
+                # sys.stderr.write("Unknown connection action {} -- tell BSMALL\n".format(action))
 
         if protocol:
             protocol = protocol.lower()
 
-        #TODO remove this and throw an exception when we are confident about our normalization
+        # TODO remove this and throw an exception when we are confident about our normalization
         if protocol and protocol not in ('tcp', 'udp', 'icmp', 'gre'):
             pass
-            #sys.stderr.write("Unknown protocol {} -- tell BSMALL\n".format(protocol))
+            # sys.stderr.write("Unknown protocol {} -- tell BSMALL\n".format(protocol))
 
         ca = cls(platform, process_name, src_port, dst_ip, dst_port, protocol, action, country_code, benign_c,
                  malware_c, grayware_c)
@@ -2715,11 +2566,9 @@ class AFConnectionActivity(AutoFocusAnalysis):
         return ca
 
 
-#dns
+# dns
 class AFDnsActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, query, response, type, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2743,7 +2592,6 @@ class AFDnsActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, dns_data):
-
         line_parts = dns_data['line'].split(" , ")
         (query, response, type) = line_parts[0:3]
         (benign_c, malware_c, grayware_c) = (dns_data.get('b', 0), dns_data.get('m', 0), dns_data.get('g', 0))
@@ -2753,9 +2601,8 @@ class AFDnsActivity(AutoFocusAnalysis):
         return da
 
 
-#file
+# file
 class AFFileActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, file_action, file_name, benign, malware, grayware):
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -2797,11 +2644,9 @@ class AFFileActivity(AutoFocusAnalysis):
         return fa
 
 
-#http
+# http
 class AFHttpActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, host, method, url, user_agent, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2828,7 +2673,6 @@ class AFHttpActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, http_data):
-
         line_parts = http_data['line'].split(" , ", 3)
         (host, method, url, user_agent) = line_parts[0:4]
         (benign_c, malware_c, grayware_c) = (http_data.get('b', 0), http_data.get('m', 0), http_data.get('g', 0))
@@ -2838,11 +2682,9 @@ class AFHttpActivity(AutoFocusAnalysis):
         return ha
 
 
-#japi
+# japi
 class AFJavaApiActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, activity, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2861,7 +2703,6 @@ class AFJavaApiActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, japi_data):
-
         (benign_c, malware_c, grayware_c) = (japi_data.get('b', 0), japi_data.get('m', 0), japi_data.get('g', 0))
 
         ja = cls(platform, japi_data['line'], benign_c, malware_c, grayware_c)
@@ -2869,11 +2710,9 @@ class AFJavaApiActivity(AutoFocusAnalysis):
         return ja
 
 
-#mutex
+# mutex
 class AFMutexActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, function_name, mutex_name, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2897,7 +2736,6 @@ class AFMutexActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, mutex_data):
-
         (process_name, function_name, mutex_name) = mutex_data['line'].split(" , ")
         (benign_c, malware_c, grayware_c) = (mutex_data.get('b', 0), mutex_data.get('m', 0), mutex_data.get('g', 0))
 
@@ -2909,9 +2747,8 @@ class AFMutexActivity(AutoFocusAnalysis):
         return ma
 
 
-#misc
+# misc
 class AFApiActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, function_name, function_arguments, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
@@ -2954,11 +2791,9 @@ class AFApiActivity(AutoFocusAnalysis):
         return ma
 
 
-#process
+# process
 class AFProcessActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, action, parameters, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -2982,7 +2817,6 @@ class AFProcessActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, misc_data):
-
         line_parts = misc_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
         parameters = line_parts[2:]
@@ -2996,9 +2830,8 @@ class AFProcessActivity(AutoFocusAnalysis):
         return ma
 
 
-#registry
+# registry
 class AFRegistryActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, action, registry_key, parameters, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
@@ -3036,7 +2869,8 @@ class AFRegistryActivity(AutoFocusAnalysis):
 
         registry_key = line_parts[2]
         parameters = line_parts[2:]
-        (benign_c, malware_c, grayware_c) = (registry_data.get('b', 0), registry_data.get('m', 0), registry_data.get('g', 0))
+        (benign_c, malware_c, grayware_c) = (
+        registry_data.get('b', 0), registry_data.get('m', 0), registry_data.get('g', 0))
 
         if not process_name or process_name.lower() in (" ", "unknown"):
             process_name = None
@@ -3046,11 +2880,9 @@ class AFRegistryActivity(AutoFocusAnalysis):
         return ma
 
 
-#service
+# service
 class AFServiceActivity(AutoFocusAnalysis):
-
     def __init__(self, platform, process_name, action, parameters, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -3074,11 +2906,11 @@ class AFServiceActivity(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, service_data):
-
         line_parts = service_data['line'].split(" , ")
         (process_name, action) = line_parts[0:2]
         parameters = line_parts[2:]
-        (benign_c, malware_c, grayware_c) = (service_data.get('b', 0), service_data.get('m', 0), service_data.get('g', 0))
+        (benign_c, malware_c, grayware_c) = (
+        service_data.get('b', 0), service_data.get('m', 0), service_data.get('g', 0))
 
         if not process_name or process_name.lower() in (" ", "unknown"):
             process_name = None
@@ -3088,11 +2920,9 @@ class AFServiceActivity(AutoFocusAnalysis):
         return ma
 
 
-#user_agent
+# user_agent
 class AFUserAgentFragment(AutoFocusAnalysis):
-
     def __init__(self, platform, fragment, benign, malware, grayware):
-
         #: str: The platform the sample analysis is from
         self.platform = platform
 
@@ -3110,7 +2940,6 @@ class AFUserAgentFragment(AutoFocusAnalysis):
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, ua_data):
-
         (benign_c, malware_c, grayware_c) = (ua_data.get('b', 0), ua_data.get('m', 0), ua_data.get('g', 0))
 
         ba = cls(platform, ua_data['line'], benign_c, malware_c, grayware_c)
