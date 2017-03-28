@@ -34,9 +34,8 @@ SHOW_WARNINGS = False
 
 
 # TODO: Get rid of global settings?
-def set_global_config(filename=None):
+def set_global_config(filename=None, section_name='autofocus'):
     parser = configparser.ConfigParser()
-    section_name = "autofocus"
 
     if filename is None:
         conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
