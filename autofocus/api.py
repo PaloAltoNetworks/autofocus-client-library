@@ -32,9 +32,9 @@ AF_APIKEY = None
 SHOW_WARNINGS = False
 
 try:
-    import ConfigParser
+    import configparser
 
-    parser = ConfigParser.ConfigParser()
+    parser = configparser.ConfigParser()
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
     parser.read(os.path.expanduser(conf_path))
     AF_APIKEY = parser.get("autofocus", "apikey")
@@ -142,7 +142,7 @@ class AutoFocusObject(object):
                     blacklist.append(k)
 
         # serialize
-        for k, v in obj_attrs.items():
+        for k, v in list(obj_attrs.items()):
 
             # ignore private and blacklisted
             if k.startswith("_") or k in blacklist:
@@ -187,7 +187,7 @@ class AutoFocusAPI(object):
     page_size = 2000
 
     def __init__(self, **kwargs):
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             setattr(self, k, v)
 
     def __repr__(self):
@@ -430,9 +430,9 @@ class AutoFocusAPI(object):
                 }
             }
 
-        if type(query) is str or type(query) is unicode:
+        if isinstance(query, str):
             post_data['query'] = json.loads(query)
-        elif type(query) is dict:
+        elif isinstance(query, dict):
             if 'field' in query:
                 post_data['query'] = {"operator": "all", "children": [query]}
             else:
@@ -623,7 +623,7 @@ class AFTag(AutoFocusObject):
         #: Priveate _references
         self._references = kwargs.get("refs", NotLoaded())
 
-        if type(self._references) in (str, unicode):
+        if type(self._references) in (str, str):
             self.references = []
             if not self._references == "null":
                 try:
@@ -1172,7 +1172,7 @@ class AFSampleFactory(AutoFocusAPI):
             elif len(hash) == 64:
                 query['field'] = "sample.sha256"
 
-            res = AFSample.search(query).next()
+            res = next(AFSample.search(query))
         except _InvalidSampleData:
             raise AFSampleAbsent("Sample data is incomplete in AutoFocus")
         except StopIteration:
@@ -1198,7 +1198,7 @@ class AFSample(AutoFocusObject):
                             "ssdeep", "imphash", "ispublic")
 
         # TODO: remove this when the library matures, needless checking once we sort out attributes
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             if k not in known_attributes:
                 pass
                 # sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
@@ -1592,7 +1592,7 @@ class AFSample(AutoFocusObject):
                 continue
 
             # for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
-            for platform in resp_data[section].keys():
+            for platform in list(resp_data[section].keys()):
                 for data in resp_data[section][platform]:
                     # TODO: remove try catch when all analyses types are normalized
                     try:
@@ -1629,7 +1629,7 @@ class AFSample(AutoFocusObject):
 
 class AutoFocusAnalysis(AutoFocusObject):
     def __init__(self, obj_data):
-        for k, v in obj_data.items():
+        for k, v in list(obj_data.items()):
             setattr(self, k, v)
 
     @classmethod
@@ -2987,7 +2987,7 @@ _analysis_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
 _analysis_class_map['apk_app_icon'] = AFApkIcon
 _analysis_class_map['apk_internal_file'] = AFApkEmbeddedFile
 
-for k, v in _analysis_class_map.items():
+for k, v in list(_analysis_class_map.items()):
     _class_analysis_map[v] = k
     v.__autofocus_section = k
 
