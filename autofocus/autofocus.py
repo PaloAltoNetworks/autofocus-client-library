@@ -314,7 +314,7 @@ class AutoFocusAPI(object):
                 # Retrying E101x errors, per Tarun Singh
                 try:
                     resp_data = resp.json()
-                    if resp_data['code'] in ("E1015", "E1016", "E1017", "E1100") and e_code_skips < 3:
+                    if resp_data['code'] in ("E1015", "E1016", "E1017", "E1100", "E1201") and e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                 except requests.ConnectionError as e:
                     if e_code_skips < 3:
