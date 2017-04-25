@@ -3171,5 +3171,4 @@ for k, v in _analysis_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-     print AFSample.get("ba34047b2d7864f31f5391b46d33dbafcd0c08a46e1bf19812d7cb41331126ac").serialize(include_all=True, depth=2)['tags']
+    pass
