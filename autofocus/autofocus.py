@@ -1394,11 +1394,9 @@ class AFSample(AutoFocusObject):
         # When they are accessed
         if attr == "tags" and type(value) is NotLoaded:
 
-            tag_names = object.__getattribute__(self, "_tags")
-
             value = []
 
-            for tag_name in tag_names:
+            for tag_name in object.__getattribute__(self, "_tags"):
 
                 # TODO: Consider what might happen here if the tagname isn't in the DB
                 value.append(AFTag.get(tag_name))
