@@ -238,7 +238,13 @@ class AutoFocusObject(object):
                         serialized_array.append("%.1f" % item)
                     elif isinstance(item, (str, int, dict)):
                         serialized_array.append(item)
-                serialized[k] = serialized_array
+
+                # Only add if we actually have data in the list, this will be empty in the case that all of the members
+                # are AutofocusObjects and we are past the recursion depths (Think AFSample.tags)
+                if serialized_array:
+                    serialized[k] = serialized_array
+                elif not v: # If v just didn't have anything it, give it an emtpy array
+                    serialized[k] = []
 
             elif isinstance(v, AutoFocusObject):
                 # only encode hard coded relations (via __serializable_relations__)
@@ -1390,7 +1396,7 @@ class AFSample(AutoFocusObject):
 
             value = []
 
-            for tag_name in self._tags:
+            for tag_name in object.__getattribute__(self, "_tags"):
 
                 # TODO: Consider what might happen here if the tagname isn't in the DB
                 value.append(AFTag.get(tag_name))
