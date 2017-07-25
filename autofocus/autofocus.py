@@ -1568,8 +1568,6 @@ class AFSample(AutoFocusObject):
                 try:
                     for sample in AFSample.list([hash1, hash2]):
                         sample # Do something with the sample object
-                except StopIteration:
-                    pass # No results found
                 except AFServerError:
                     pass # Something happened to the server
                 except AFClientError:
