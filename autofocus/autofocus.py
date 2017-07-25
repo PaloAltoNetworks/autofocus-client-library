@@ -752,6 +752,36 @@ class AFTag(AutoFocusObject):
         return value
 
     @classmethod
+    def search(cls, query, *args, **kwargs):
+        """
+        Examples:
+            tags = AFTag.search([{"field":"tag_name","operator":"contains","value":"jwhite"}])
+            # Or as a string
+            tags = AFTag.search('[{"field":"tag_name","operator":"contains","value":"jwhite"}]')
+        Notes:
+            Tag objecst must be in a list, like in the example
+        Args:
+            query (str): The string or object that you wish to query for
+            scope (str): The scope of the tags you want listed, acceptable values are -
+                Visible, Private, Public, Unit42, Mine, Commodity. Defaults to Visible
+            sortBy (Optional[str]): The field to sort results by, acceptable values are - name, status, count, lasthit,
+                upVotes, downVotes. Defaults to name
+            order (str): The direction to sort, acceptable values are "asc" or "desc", Defaults to asc
+
+        Returns:
+            List[AFTag]: as list of AFTag objects based on the arguments offered.
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            for tag in AFTag.list():
+                print tag.count
+        """
+        return AFTagFactory.search(query, *args, **kwargs)
+
+    @classmethod
     def list(cls, *args, **kwargs):
         """
         Args:
@@ -821,6 +851,23 @@ class AFTagFactory(AutoFocusAPI):
     AFTagFactory is a class to handle fetching an instantiating AFTag objects. See AFTag for details
     """
 
+
+    @classmethod
+    def search(cls, query, *args, **kwargs):
+        """
+        Notes: See AFTag.search for documentation
+        """
+
+        kwargs['query'] = query
+
+        try:
+            if type(query) not in (list, dict):
+                kwargs['query'] = json.loads(query)
+        except:
+            raise AFClientError("Query is not valid JSON")
+
+        return AFTagFactory.list(*args, **kwargs)
+
     @classmethod
     def list(cls, *args, **kwargs):
         """
@@ -838,7 +885,7 @@ class AFTagFactory(AutoFocusAPI):
 
         results = []
 
-        resp_data = cls._api_request("/tags/", post_data = kwargs).json()
+        resp_data = cls._api_request("/tags", post_data = kwargs).json()
 
         for tag_data in resp_data['tags']:
             results.append(AFTagCache.add(AFTag(**tag_data)))
