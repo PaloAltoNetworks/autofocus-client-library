@@ -1200,6 +1200,34 @@ class AFSampleFactory(AutoFocusAPI):
     """
 
     @classmethod
+    def list(cls, sha256s):
+        """
+        Notes: See AFSample.list documentation
+        """
+
+        def chunks(l, n):
+            for i in range(0, len(l), n):
+                yield l[i:i + n]
+
+        sha_lists = chunks(sha256s, 1000)
+
+        for sha_list in sha_lists:
+
+            query = {
+            "operator": "all",
+            "children": [
+                {
+                    "field": "sample.sha256",
+                    "operator": "is in the list",
+                    "value": sha_list
+                }
+            ]
+            }
+
+            for sample in AFSample.scan(query, page_size=1000):#, "create_date", "asc"):
+                yield sample
+
+    @classmethod
     def search(cls, query, scope, sort_by, sort_order):
         """
         Notes: See AFSample.search documentation
@@ -1511,6 +1539,55 @@ class AFSample(AutoFocusObject):
 
         """
         for sample in AFSampleFactory.scan(query, scope, page_size):
+            yield sample
+
+    @classmethod
+    def list(cls, sha256s):
+        """
+
+        The AFSample.list method is a factory to return AFSample object instances. This correspond to the list of hashes
+         offered
+
+        Notes
+        -----
+            This is a conveneience method that utilizes the AFSample.scan function, pulling 1k samples per API request.
+             It returns a generator for iterating on the AFSample objects.
+
+             THERE IS NO ERROR RETURNED IF A SHA256 IS NOT FOUND. If you need to ensure that 100% of the samples are in
+             AF, you'll need to keep track of your original list and compare it to the results.
+
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Python dictionary with the query parameters
+                try:
+                    for sample in AFSample.list([hash1, hash2]):
+                        sample # Do something with the sample object
+                except StopIteration:
+                    pass # No results found
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            sha25s List[str]: The sha256s to look up
+
+        Yields:
+            AFSample: sample objects as they are paged from the REST service
+
+        Raises
+        ------
+
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        for sample in AFSampleFactory.list(sha256s):
             yield sample
 
     @classmethod
