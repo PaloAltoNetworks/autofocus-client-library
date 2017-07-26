@@ -166,10 +166,11 @@ class AFServerError(AutoFocusException):
 class AFSampleAbsent(AutoFocusException, KeyError):
     pass
 
-
 class AFTagAbsent(AutoFocusException, KeyError):
     pass
 
+class AFTagGroupAbsent(AutoFocusException, KeyError):
+    pass
 
 class _InvalidSampleData(Exception):
     """
@@ -696,7 +697,6 @@ class AFTag(AutoFocusObject):
 
         #: List[str]: Comments for the given tag
         self.comments = kwargs.get("comments", NotLoaded())
-
         #: List[str]: a list of references for the tag
         self.references = NotLoaded()
 
@@ -711,8 +711,18 @@ class AFTag(AutoFocusObject):
                     for v in ref_data:
                         self.references.append(AFTagReference(**v))
                 except Exception as e:
-                    pass
+                    get_logger().debug("Unable to load tag reference for %s: %s ", self.public_name, self._references)
 
+        #: List[AFTagGroup]: Tag groups for the given tag
+        self._groups = kwargs.get("tag_groups", NotLoaded())
+
+        if type(self._groups) is not NotLoaded:
+            self.groups = []
+            try:
+                for v in self._groups:
+                    self.groups.append(AFTagGroup(**v))
+            except Exception as e:
+                get_logger().debug("Unable to load tag groups for %s: %s ", self.public_name, self._groups)
 
         #: dict: a dictionary with comments in it? Don't we have comments above?
         #self.review = kwargs.get("review", NotLoaded())
@@ -827,6 +837,22 @@ class AFTag(AutoFocusObject):
         """
         return AFTagFactory.get(tag_name)
 
+class AFTagGroupCache(object):
+
+    _cache = {}
+
+    @classmethod
+    def get(cls, tag_group_name):
+        return cls._cache.get(tag_group_name, None)
+
+    @classmethod
+    def add(cls, tag_group):
+        cls._cache[tag_group.name] = tag_group
+        return cls._cache[tag_group.name]
+
+    @classmethod
+    def clear(cls, tag_group):
+        del cls._cache[tag_group.name]
 
 class AFTagCache(object):
 
@@ -850,6 +876,13 @@ class AFTagFactory(AutoFocusAPI):
     """
     AFTagFactory is a class to handle fetching an instantiating AFTag objects. See AFTag for details
     """
+
+    @classmethod
+    def get_tags_by_group(cls, group_name):
+        """
+        Notes: See AFTagGroup.get for documentation
+        """
+        return AFTag.search([{"field":"tag_group","operator":"is","value":group_name}])
 
 
     @classmethod
@@ -930,10 +963,91 @@ class AFTagFactory(AutoFocusAPI):
         tag_data = resp_data['tag']
         tag_data['related_tag_names'] = resp_data.get("related_tags", [])
         tag_data['tag_searches'] = resp_data.get("tag_searches", [])
+        tag_data['tag_groups'] = resp_data.get("tag_groups", [])
 
         tag = AFTagCache.add(AFTag(**tag_data))
 
         return tag
+
+
+class AFTagGroup(AutoFocusObject):
+
+    def __init__(self, **kwargs):
+
+        #: str: The name of the tag group
+        self.name = kwargs.get("tag_group_name")
+
+        #: str: The description of the tag group
+        self.description = kwargs.get("description")
+
+        self.tags = NotLoaded()
+
+    @classmethod
+    def get(cls, group_name):
+        """
+        Args:
+            group_name (str): The name of the group to pull
+
+        Returns:
+            AFTagGroup: an instance of AFTagGroup for the given AFTagGroup name
+
+        Raises:
+            AFSampleAbsent: Raises a key error when the tag does not exist
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            try:
+                tag_group = AFTagGroup.get("OSX")
+
+                for tag in tag_group:
+                    print tag.public_name
+
+            except AFTagGroupAbsent:
+                pass # Tag group didn't exist
+        """
+        return AFTagGroupFactory.get(group_name)
+
+    def __iter__(self):
+        return iter(self.tags)
+
+    def __getattribute__(self, attr):
+
+        value = object.__getattribute__(self, attr)
+
+        # Not offered in the list controller, have to call get to lazy load:
+        if type(value) is NotLoaded:
+
+            new_tag_group = AFTagGroupFactory.get(self.name)
+
+            # Reloading the data via the get method
+            self = new_tag_group
+            value = object.__getattribute__(self, attr)
+
+        return value
+
+class AFTagGroupFactory(AutoFocusAPI):
+
+    @classmethod
+    def get(cls, group_name, use_cache=True):
+
+        if use_cache:
+            group = AFTagGroupCache.get(group_name)
+            if group:
+                return group
+
+        tags = AFTagFactory.get_tags_by_group(group_name)
+
+        if not tags:
+            raise AFTagGroupAbsent("Unable to find tag group {}".format(group_name))
+
+        group = [v for v in tags[0].groups if v.name == group_name][0]
+
+        object.__setattr__(group, "tags", tags)
+
+        group = AFTagGroupCache.add(group)
+
+        return group
 
 
 class AFSession(AutoFocusObject):
@@ -3292,3 +3406,4 @@ for k, v in _analysis_class_map.items():
 
 if __name__ == "__main__":
     pass
+
