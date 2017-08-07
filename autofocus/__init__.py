@@ -45,6 +45,8 @@ from autofocus import AFServiceActivity
 from autofocus import AFSession
 from autofocus import AFSessionFactory
 from autofocus import AFTag
+from autofocus import AFTagGroup
+from autofocus import AFTagGroupAbsent
 from autofocus import AFTagDefinition
 from autofocus import AFTagAbsent
 from autofocus import AFTagCache
@@ -103,6 +105,8 @@ _ALL_ = [
     "AFSession",
     "AFSessionFactory",
     "AFTag",
+    "AFTagGroup",
+    "AFTagGroupAbsent",
     "AFTagDefinition",
     "AFTagAbsent",
     "AFTagCache",

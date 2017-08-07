@@ -166,10 +166,11 @@ class AFServerError(AutoFocusException):
 class AFSampleAbsent(AutoFocusException, KeyError):
     pass
 
-
 class AFTagAbsent(AutoFocusException, KeyError):
     pass
 
+class AFTagGroupAbsent(AutoFocusException, KeyError):
+    pass
 
 class _InvalidSampleData(Exception):
     """
@@ -696,7 +697,6 @@ class AFTag(AutoFocusObject):
 
         #: List[str]: Comments for the given tag
         self.comments = kwargs.get("comments", NotLoaded())
-
         #: List[str]: a list of references for the tag
         self.references = NotLoaded()
 
@@ -711,8 +711,18 @@ class AFTag(AutoFocusObject):
                     for v in ref_data:
                         self.references.append(AFTagReference(**v))
                 except Exception as e:
-                    pass
+                    get_logger().debug("Unable to load tag reference for %s: %s ", self.public_name, self._references)
 
+        #: List[AFTagGroup]: Tag groups for the given tag
+        self._groups = kwargs.get("tag_groups", NotLoaded())
+
+        if type(self._groups) is not NotLoaded:
+            self.groups = []
+            try:
+                for v in self._groups:
+                    self.groups.append(AFTagGroup(**v))
+            except Exception as e:
+                get_logger().debug("Unable to load tag groups for %s: %s ", self.public_name, self._groups)
 
         #: dict: a dictionary with comments in it? Don't we have comments above?
         #self.review = kwargs.get("review", NotLoaded())
@@ -750,6 +760,36 @@ class AFTag(AutoFocusObject):
                 get_logger().warning("Unable to lazy load tag attribute, defaulting to a false value! tag:%s attribute:%s\n" % (self.public_name, attr))
 
         return value
+
+    @classmethod
+    def search(cls, query, *args, **kwargs):
+        """
+        Examples:
+            tags = AFTag.search([{"field":"tag_name","operator":"contains","value":"jwhite"}])
+            # Or as a string
+            tags = AFTag.search('[{"field":"tag_name","operator":"contains","value":"jwhite"}]')
+        Notes:
+            Tag objecst must be in a list, like in the example
+        Args:
+            query (str): The string or object that you wish to query for
+            scope (str): The scope of the tags you want listed, acceptable values are -
+                Visible, Private, Public, Unit42, Mine, Commodity. Defaults to Visible
+            sortBy (Optional[str]): The field to sort results by, acceptable values are - name, status, count, lasthit,
+                upVotes, downVotes. Defaults to name
+            order (str): The direction to sort, acceptable values are "asc" or "desc", Defaults to asc
+
+        Returns:
+            List[AFTag]: as list of AFTag objects based on the arguments offered.
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            for tag in AFTag.list():
+                print tag.count
+        """
+        return AFTagFactory.search(query, *args, **kwargs)
 
     @classmethod
     def list(cls, *args, **kwargs):
@@ -797,6 +837,22 @@ class AFTag(AutoFocusObject):
         """
         return AFTagFactory.get(tag_name)
 
+class AFTagGroupCache(object):
+
+    _cache = {}
+
+    @classmethod
+    def get(cls, tag_group_name):
+        return cls._cache.get(tag_group_name, None)
+
+    @classmethod
+    def add(cls, tag_group):
+        cls._cache[tag_group.name] = tag_group
+        return cls._cache[tag_group.name]
+
+    @classmethod
+    def clear(cls, tag_group):
+        del cls._cache[tag_group.name]
 
 class AFTagCache(object):
 
@@ -822,6 +878,30 @@ class AFTagFactory(AutoFocusAPI):
     """
 
     @classmethod
+    def get_tags_by_group(cls, group_name):
+        """
+        Notes: See AFTagGroup.get for documentation
+        """
+        return AFTag.search([{"field":"tag_group","operator":"is","value":group_name}])
+
+
+    @classmethod
+    def search(cls, query, *args, **kwargs):
+        """
+        Notes: See AFTag.search for documentation
+        """
+
+        kwargs['query'] = query
+
+        try:
+            if type(query) not in (list, dict):
+                kwargs['query'] = json.loads(query)
+        except:
+            raise AFClientError("Query is not valid JSON")
+
+        return AFTagFactory.list(*args, **kwargs)
+
+    @classmethod
     def list(cls, *args, **kwargs):
         """
         Notes: See AFTag.list for documentation
@@ -838,7 +918,7 @@ class AFTagFactory(AutoFocusAPI):
 
         results = []
 
-        resp_data = cls._api_request("/tags/", post_data = kwargs).json()
+        resp_data = cls._api_request("/tags", post_data = kwargs).json()
 
         for tag_data in resp_data['tags']:
             results.append(AFTagCache.add(AFTag(**tag_data)))
@@ -883,10 +963,91 @@ class AFTagFactory(AutoFocusAPI):
         tag_data = resp_data['tag']
         tag_data['related_tag_names'] = resp_data.get("related_tags", [])
         tag_data['tag_searches'] = resp_data.get("tag_searches", [])
+        tag_data['tag_groups'] = resp_data.get("tag_groups", [])
 
         tag = AFTagCache.add(AFTag(**tag_data))
 
         return tag
+
+
+class AFTagGroup(AutoFocusObject):
+
+    def __init__(self, **kwargs):
+
+        #: str: The name of the tag group
+        self.name = kwargs.get("tag_group_name")
+
+        #: str: The description of the tag group
+        self.description = kwargs.get("description")
+
+        self.tags = NotLoaded()
+
+    @classmethod
+    def get(cls, group_name):
+        """
+        Args:
+            group_name (str): The name of the group to pull
+
+        Returns:
+            AFTagGroup: an instance of AFTagGroup for the given AFTagGroup name
+
+        Raises:
+            AFSampleAbsent: Raises a key error when the tag does not exist
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        Examples:
+            try:
+                tag_group = AFTagGroup.get("OSX")
+
+                for tag in tag_group:
+                    print tag.public_name
+
+            except AFTagGroupAbsent:
+                pass # Tag group didn't exist
+        """
+        return AFTagGroupFactory.get(group_name)
+
+    def __iter__(self):
+        return iter(self.tags)
+
+    def __getattribute__(self, attr):
+
+        value = object.__getattribute__(self, attr)
+
+        # Not offered in the list controller, have to call get to lazy load:
+        if type(value) is NotLoaded:
+
+            new_tag_group = AFTagGroupFactory.get(self.name)
+
+            # Reloading the data via the get method
+            self = new_tag_group
+            value = object.__getattribute__(self, attr)
+
+        return value
+
+class AFTagGroupFactory(AutoFocusAPI):
+
+    @classmethod
+    def get(cls, group_name, use_cache=True):
+
+        if use_cache:
+            group = AFTagGroupCache.get(group_name)
+            if group:
+                return group
+
+        tags = AFTagFactory.get_tags_by_group(group_name)
+
+        if not tags:
+            raise AFTagGroupAbsent("Unable to find tag group {}".format(group_name))
+
+        group = [v for v in tags[0].groups if v.name == group_name][0]
+
+        object.__setattr__(group, "tags", tags)
+
+        group = AFTagGroupCache.add(group)
+
+        return group
 
 
 class AFSession(AutoFocusObject):
@@ -1200,6 +1361,34 @@ class AFSampleFactory(AutoFocusAPI):
     """
 
     @classmethod
+    def list(cls, sha256s):
+        """
+        Notes: See AFSample.list documentation
+        """
+
+        def chunks(l, n):
+            for i in range(0, len(l), n):
+                yield l[i:i + n]
+
+        sha_lists = chunks(sha256s, 1000)
+
+        for sha_list in sha_lists:
+
+            query = {
+            "operator": "all",
+            "children": [
+                {
+                    "field": "sample.sha256",
+                    "operator": "is in the list",
+                    "value": sha_list
+                }
+            ]
+            }
+
+            for sample in AFSample.scan(query, page_size=1000):#, "create_date", "asc"):
+                yield sample
+
+    @classmethod
     def search(cls, query, scope, sort_by, sort_order):
         """
         Notes: See AFSample.search documentation
@@ -1511,6 +1700,53 @@ class AFSample(AutoFocusObject):
 
         """
         for sample in AFSampleFactory.scan(query, scope, page_size):
+            yield sample
+
+    @classmethod
+    def list(cls, sha256s):
+        """
+
+        The AFSample.list method is a factory to return AFSample object instances. This correspond to the list of hashes
+         offered
+
+        Notes
+        -----
+            This is a conveneience method that utilizes the AFSample.scan function, pulling 1k samples per API request.
+             It returns a generator for iterating on the AFSample objects.
+
+             THERE IS NO ERROR RETURNED IF A SHA256 IS NOT FOUND. If you need to ensure that 100% of the samples are in
+             AF, you'll need to keep track of your original list and compare it to the results.
+
+            Argument validation is done via the REST service. There is no client side validation of arguments. See the
+            `following page <https://www.paloaltonetworks.com/documentation/autofocus/autofocus/autofocus_admin_guide/autofocus-search/work-with-the-search-editor.html>`_
+            for details on how searching works in the UI and how to craft a query for the API.
+
+        Examples
+        --------
+            Using the search class method::
+
+                # Python dictionary with the query parameters
+                try:
+                    for sample in AFSample.list([hash1, hash2]):
+                        sample # Do something with the sample object
+                except AFServerError:
+                    pass # Something happened to the server
+                except AFClientError:
+                    pass # The client did something stupid, likely a bad query was passed
+        Args:
+            sha25s List[str]: The sha256s to look up
+
+        Yields:
+            AFSample: sample objects as they are paged from the REST service
+
+        Raises
+        ------
+
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+
+        """
+        for sample in AFSampleFactory.list(sha256s):
             yield sample
 
     @classmethod
@@ -3170,3 +3406,4 @@ for k, v in _analysis_class_map.items():
 
 if __name__ == "__main__":
     pass
+
