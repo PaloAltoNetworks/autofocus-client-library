@@ -1156,8 +1156,8 @@ class AFSession(AutoFocusObject):
         #: datetime: the time the activity was detected
         self.timestamp = timestamp
 
-        # Doesn't seem to have much meaing. Making private
-        self._user_id = kwargs.get("user_id")
+        #: str: the user ID the firewall uses if the customer sets up user ID via AD/portal/whatever method they use - can be used for per user policy enforcement
+        self.user_id = kwargs.get("user_id")
 
         # Doesn't seem to have much meaing. Making private
         self._vsys = kwargs.get("vsys")
