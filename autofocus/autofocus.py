@@ -60,8 +60,11 @@ _USER_AGENT = "GSRT AutoFocus Client Library/1.0"
 
 # A dictionaries for mapping AutoFocus Analysis Response objects
 # to their corresponding normalization classes and vice-versa
-_analysis_class_map = {}
-_class_analysis_map = {}
+_analysis_2_class_map = {}
+_class_2_analysis_map = {}
+
+_coverage_2_class_map = {}
+_class_2_coverage_map = {}
 
 _base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 
@@ -1854,6 +1857,58 @@ class AFSample(AutoFocusObject):
         """
         return AFSample.get_analyses_by_hash(self.sha256, sections, platforms)
 
+    def get_coverage(self):
+        """
+        Notes:
+            Calls the :func:`AFSample.get_analyses_by_hash` class method with the sample's sha256. See documentation
+            there for details.
+        """
+        return AFSample.get_coverage_by_hash(self.sha256)
+
+    @classmethod
+    def get_coverage_by_hash(cls, sha256):
+        """
+        Args:
+            sha256 (str): The sample's sha256 for the related analyses to pull
+            platforms (Optional[array[str]]): The analysis platforms desired. Defaults to all possible platforms.
+
+        Returns:
+            array[AutoFocusCoverage]: A list of AutoFocusAnalysis sub-class instances representing the analysis
+
+        Raises:
+            AFClientError: In the case that the client did something unexpected
+            AFServerError: In the case that the client did something unexpected
+        """
+
+        mapped_sections = []
+
+        post_data = {'sections': ["coverage"], "coverage": "true"}
+
+        try:
+            resp_data = AutoFocusAPI._api_request("/sample/" + sha256 + "/analysis", post_data = post_data).json()
+        except AFClientError as e:
+            if "Requested sample not found" in e.message:
+                raise AFSampleAbsent("No such sample in AutoFocus")
+            raise e
+
+        coverages = []
+
+        for cov_cat, cov_rows in resp_data.get("coverage", {}).items():
+
+            if cov_cat in ("latest_versions"):
+                continue
+
+            if cov_cat not in _coverage_2_class_map:
+                get_logger().debug("Got section " + cov_cat + ", not found in coverage 2 class map")
+            else:
+                for cov_data in cov_rows:
+                    try:
+                        coverages.append(_coverage_2_class_map[cov_cat](cov_data))
+                    except:
+                        raise AFClientError("Unable to parse responses from server - malformed response?")
+
+        return coverages
+
     @classmethod
     def get_analyses_by_hash(cls, sha256, sections = None, platforms = None):
         """
@@ -1885,7 +1940,7 @@ class AFSample(AutoFocusObject):
 
             for section in sections:
                 if type(section) is not str:
-                    mapped_sections.append(_class_analysis_map[section])
+                    mapped_sections.append(_class_2_analysis_map[section])
                 else:
                     mapped_sections.append(section)
 
@@ -1901,7 +1956,7 @@ class AFSample(AutoFocusObject):
         analyses = []
 
         for section in resp_data['sections']:
-            af_analysis_class = _analysis_class_map.get(section, None)
+            af_analysis_class = _analysis_2_class_map.get(section, None)
 
             if not af_analysis_class:
                 if section != 'truncated_sections':
@@ -1944,6 +1999,15 @@ class AFSample(AutoFocusObject):
 
         return analyses
 
+class AutoFocusCoverage(AutoFocusObject):
+
+    def __init__(self, obj_data):
+        for k, v in obj_data.items():
+            setattr(self, k, v)
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, resp_data):
+        return cls(resp_data)
 
 class AutoFocusAnalysis(AutoFocusObject):
 
@@ -3359,49 +3423,195 @@ class AFUserAgentFragment(AutoFocusAnalysis):
 
         return ba
 
+class AFURLCatogorization(AutoFocusCoverage):
 
-_analysis_class_map['apk_defined_activity'] = AFApkActivityAnalysis
-_analysis_class_map['apk_defined_intent_filter'] = AFApkIntentFilterAnalysis
-_analysis_class_map['apk_defined_receiver'] = AFApkReceiverAnalysis
-_analysis_class_map['apk_defined_sensor'] = AFApkSensorAnalysis
-_analysis_class_map['apk_defined_service'] = AFApkServiceAnalysis
-_analysis_class_map['apk_embeded_url'] = AFApkEmbededUrlAnalysis
-_analysis_class_map['apk_requested_permission'] = AFApkRequestedPermissionAnalysis
-_analysis_class_map['apk_sensitive_api_call'] = AFApkSensitiveApiCallAnalysis
-_analysis_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
-_analysis_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
-_analysis_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
-_analysis_class_map['mac_embedded_url'] = AFMacEmbeddedURL
-_analysis_class_map['mac_embedded_file'] = AFMacEmbeddedFile
-_analysis_class_map['apk_suspicious_action_monitored'] = AFApkSuspiciousActivitySummary
-_analysis_class_map['summary'] = AFAnalysisSummary
-_analysis_class_map['apk_app_name'] = AFApkAppName
-_analysis_class_map['apk_certificate_id'] = AFApkCertificate
-_analysis_class_map['apk_cert_file'] = AFApkCertificate
-_analysis_class_map['apk_digital_signer'] = AFDigitalSigner
-_analysis_class_map['apk_packagename'] = AFApkPackage
-_analysis_class_map['apk_embedded_library'] = AFApkEmbeddedLibrary
-_analysis_class_map['apk_isrepackaged'] = AFApkRepackaged
-_analysis_class_map['apk_version_num'] = AFApkVersion
-_analysis_class_map['behavior'] = AFBehaviorAnalysis
-_analysis_class_map['behavior_type'] = AFBehaviorTypeAnalysis
-_analysis_class_map['connection'] = AFConnectionActivity
-_analysis_class_map['dns'] = AFDnsActivity
-_analysis_class_map['file'] = AFFileActivity
-_analysis_class_map['http'] = AFHttpActivity
-_analysis_class_map['japi'] = AFJavaApiActivity
-_analysis_class_map['mutex'] = AFMutexActivity
-_analysis_class_map['misc'] = AFApiActivity
-_analysis_class_map['process'] = AFProcessActivity
-_analysis_class_map['registry'] = AFRegistryActivity
-_analysis_class_map['service'] = AFServiceActivity
-_analysis_class_map['user_agent'] = AFUserAgentFragment
-_analysis_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
-_analysis_class_map['apk_app_icon'] = AFApkIcon
-_analysis_class_map['apk_internal_file'] = AFApkEmbeddedFile
+    """ The catagorization of a URL that's involved with a sample """
 
-for k, v in _analysis_class_map.items():
-    _class_analysis_map[v] = k
+    def __init__(self, kwargs):
+
+        #: str: The url
+        self.url = kwargs.get("url")
+
+        #: str: The category for the URL
+        self.category = kwargs.get("cat").rstrip()
+
+        #: int: An importance rating
+        self.importance = kwargs.get("importance")
+
+class AFC2DomainSignature(AutoFocusCoverage):
+
+    """ Domain Signature detecting C2 Activity """
+
+    def __init__(self, kwargs):
+
+        #: str: The domain related to this signature
+        self.domain = kwargs.get("domain")
+
+        #: str: The name of the signature
+        self.name = kwargs.get("name")
+
+        #: datetime: The time the signature was created
+        self.time = datetime.strptime(kwargs['create_date'], '%Y-%m-%d %H:%M:%S')
+
+        #: bool: Whether the signature is in the current release
+        self.current_daily_release = kwargs.get("currently_present_daily")
+
+        #: bool: Whether the signature is in the current 15 minute release
+        self.current_15_minute_release = kwargs.get("currently_present_15min")
+
+        #: bool: Whether the signature is in the current 5 minute release
+        self.current_5_minute_release = kwargs.get("currently_present_5min")
+
+        #: int: The first 15 minute release version the signature was included in
+        self.first_15_minute_release = kwargs.get("first_added_15min")
+
+        #: int: The first 5 minute release version the signature was included in
+        self.first_5_minute_release = kwargs.get("first_added_5min")
+
+        #: int: The first daily release version the signature was included in
+        self.first_daily_release = kwargs.get("first_added_daily")
+
+        #: int: The latest 15 minute release version the signature was included in
+        self.latest_15_minute_release = kwargs.get("last_added_15min")
+
+        #: int: The latest 5 minute release version the signature was included in
+        self.latest_5_minute_release = kwargs.get("last_added_5min")
+
+        #: int: The latest daily release version the signature was included in
+        self.latest_daily_release = kwargs.get("last_added_daily")
+
+class AFAVSignature(AutoFocusCoverage):
+
+    """ AV Signature detection of a sample """
+
+    def __init__(self, kwargs):
+
+        #: str: The name of the signature
+        self.name = kwargs.get("name")
+
+        #: datetime: The time the signature was created
+        self.time = datetime.strptime(kwargs['create_date'], '%Y-%m-%d %H:%M:%S')
+
+        #: bool: Whether the signature is in the current release
+        self.current_daily_release = kwargs.get("currently_present_daily")
+
+        #: bool: Whether the signature is in the current 15 minute release
+        self.current_15_minute_release = kwargs.get("currently_present_15min")
+
+        #: bool: Whether the signature is in the current 5 minute release
+        self.current_5_minute_release = kwargs.get("currently_present_5min")
+
+        #: int: The first 15 minute release version the signature was included in
+        self.first_15_minute_release = kwargs.get("first_added_15min")
+
+        #: int: The first 5 minute release version the signature was included in
+        self.first_5_minute_release = kwargs.get("first_added_5min")
+
+        #: int: The first daily release version the signature was included in
+        self.first_daily_release = kwargs.get("first_added_daily")
+
+        #: int: The latest 15 minute release version the signature was included in
+        self.latest_15_minute_release = kwargs.get("last_added_15min")
+
+        #: int: The latest 5 minute release version the signature was included in
+        self.latest_5_minute_release = kwargs.get("last_added_5min")
+
+        #: int: The latest daily release version the signature was included in
+        self.latest_daily_release = kwargs.get("last_added_daily")
+
+class AFDNSDownloadSignature(AutoFocusCoverage):
+
+    """ A DNS signature that detected a domain known to host malicious files """
+
+    def __init__(self, kwargs):
+
+        #: str: The domain related to this signature
+        self.domain = kwargs.get("domain")
+
+        #: str: The name of the signature
+        self.name = kwargs.get("name")
+
+        #: datetime: The time the signature was created
+        self.time = datetime.strptime(kwargs['create_date'], '%Y-%m-%d %H:%M:%S')
+
+        #: bool: Whether the signature is in the current release
+        self.current_daily_release = kwargs.get("currently_present_daily")
+
+        #: bool: Whether the signature is in the current 15 minute release
+        self.current_15_minute_release = kwargs.get("currently_present_15min")
+
+        #: bool: Whether the signature is in the current 5 minute release
+        self.current_5_minute_release = kwargs.get("currently_present_5min")
+
+        #: int: The first 15 minute release version the signature was included in
+        self.first_15_minute_release = kwargs.get("first_added_15min")
+
+        #: int: The first 5 minute release version the signature was included in
+        self.first_5_minute_release = kwargs.get("first_added_5min")
+
+        #: int: The first daily release version the signature was included in
+        self.first_daily_release = kwargs.get("first_added_daily")
+
+        #: int: The latest 15 minute release version the signature was included in
+        self.latest_15_minute_release = kwargs.get("last_added_15min")
+
+        #: int: The latest 5 minute release version the signature was included in
+        self.latest_5_minute_release = kwargs.get("last_added_5min")
+
+        #: int: The latest daily release version the signature was included in
+        self.latest_daily_release = kwargs.get("last_added_daily")
+
+_coverage_2_class_map['dns_sig'] = AFC2DomainSignature
+_coverage_2_class_map['url_cat'] = AFURLCatogorization
+_coverage_2_class_map['wf_av_sig'] = AFAVSignature
+_coverage_2_class_map['fileurl_sig'] = AFDNSDownloadSignature
+
+_analysis_2_class_map['apk_defined_activity'] = AFApkActivityAnalysis
+_analysis_2_class_map['apk_defined_intent_filter'] = AFApkIntentFilterAnalysis
+_analysis_2_class_map['apk_defined_receiver'] = AFApkReceiverAnalysis
+_analysis_2_class_map['apk_defined_sensor'] = AFApkSensorAnalysis
+_analysis_2_class_map['apk_defined_service'] = AFApkServiceAnalysis
+_analysis_2_class_map['apk_embeded_url'] = AFApkEmbededUrlAnalysis
+_analysis_2_class_map['apk_requested_permission'] = AFApkRequestedPermissionAnalysis
+_analysis_2_class_map['apk_sensitive_api_call'] = AFApkSensitiveApiCallAnalysis
+_analysis_2_class_map['apk_suspicious_api_call'] = AFApkSuspiciousApiCallAnalysis
+_analysis_2_class_map['apk_suspicious_file'] = AFApkSuspiciousFileAnalysis
+_analysis_2_class_map['apk_suspicious_string'] = AFApkSuspiciousStringAnalysis
+_analysis_2_class_map['mac_embedded_url'] = AFMacEmbeddedURL
+_analysis_2_class_map['mac_embedded_file'] = AFMacEmbeddedFile
+_analysis_2_class_map['apk_suspicious_action_monitored'] = AFApkSuspiciousActivitySummary
+_analysis_2_class_map['summary'] = AFAnalysisSummary
+_analysis_2_class_map['apk_app_name'] = AFApkAppName
+_analysis_2_class_map['apk_certificate_id'] = AFApkCertificate
+_analysis_2_class_map['apk_cert_file'] = AFApkCertificate
+_analysis_2_class_map['apk_digital_signer'] = AFDigitalSigner
+_analysis_2_class_map['apk_packagename'] = AFApkPackage
+_analysis_2_class_map['apk_embedded_library'] = AFApkEmbeddedLibrary
+_analysis_2_class_map['apk_isrepackaged'] = AFApkRepackaged
+_analysis_2_class_map['apk_version_num'] = AFApkVersion
+_analysis_2_class_map['behavior'] = AFBehaviorAnalysis
+_analysis_2_class_map['behavior_type'] = AFBehaviorTypeAnalysis
+_analysis_2_class_map['connection'] = AFConnectionActivity
+_analysis_2_class_map['dns'] = AFDnsActivity
+_analysis_2_class_map['file'] = AFFileActivity
+_analysis_2_class_map['http'] = AFHttpActivity
+_analysis_2_class_map['japi'] = AFJavaApiActivity
+_analysis_2_class_map['mutex'] = AFMutexActivity
+_analysis_2_class_map['misc'] = AFApiActivity
+_analysis_2_class_map['process'] = AFProcessActivity
+_analysis_2_class_map['registry'] = AFRegistryActivity
+_analysis_2_class_map['service'] = AFServiceActivity
+_analysis_2_class_map['user_agent'] = AFUserAgentFragment
+_analysis_2_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
+_analysis_2_class_map['apk_app_icon'] = AFApkIcon
+_analysis_2_class_map['apk_internal_file'] = AFApkEmbeddedFile
+
+for k, v in _analysis_2_class_map.items():
+    _class_2_analysis_map[v] = k
+    v.__autofocus_section = k
+
+for k, v in _coverage_2_class_map.items():
+    _class_2_coverage_map[v] = k
     v.__autofocus_section = k
 
 if __name__ == "__main__":
