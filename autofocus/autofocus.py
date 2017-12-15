@@ -438,10 +438,15 @@ class AutoFocusAPI(object):
         post_data["size"] = post_data.get("size", cls.page_size)
         post_data["from"] = 0
 
+        search_complete = False
+
         while True:
 
+            if search_complete:
+                raise StopIteration()
+
             # Trim the page for the 4k limit on regular searches
-            if "type" not in post_data or post_data['type'] != "scan":
+            if "type" not in post_data:
 
                 if post_data['from'] >= 4000:
                     raise StopIteration()
@@ -476,9 +481,17 @@ class AutoFocusAPI(object):
                 if 'af_in_progress' not in resp_data:
                     raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(af_cookie), resp)
 
+                sample_count_in_results = len(resp_data.get('hits', []))
+
+                # Determine if we're done with the search for all pages
+                if not resp_data['af_in_progress']: # This query is done (for this page)
+                    # This page has less results than there are potential results (bucket isn't full)
+                    if sample_count_in_results < post_data['size']\
+                      or post_data['size'] + post_data['from'] >= 4000: # This is the last possible page
+                        search_complete = True
+
                 # If we've gotten our bucket size worth of data, or the query has complete
-                if len(resp_data.get('hits', [])) == post_data['size'] \
-                        or not resp_data['af_in_progress']:
+                if sample_count_in_results == post_data['size'] or not resp_data['af_in_progress']:
                     break
 
                 # Here for debugging purposes
@@ -3616,4 +3629,3 @@ for k, v in _coverage_2_class_map.items():
 
 if __name__ == "__main__":
     pass
-
