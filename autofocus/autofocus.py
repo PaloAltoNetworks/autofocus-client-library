@@ -2271,6 +2271,205 @@ class AFRelatedMacro(AutoFocusAnalysis):
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, sha256, verdict, benign_c, malware_c, grayware_c)
 
+#elf_domains
+class AFELFDomain(AutoFocusAnalysis):
+
+    def __init__(self, platform, domain, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: domain
+        self.domain = domain
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        domain = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, domain, benign_c, malware_c, grayware_c)
+
+#elf_urls
+class AFELFURL(AutoFocusAnalysis):
+
+    def __init__(self, platform, url, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: url
+        self.url = url
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        url = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, url, benign_c, malware_c, grayware_c)
+
+#elf_ip_address
+class AFELFIPAddress(AutoFocusAnalysis):
+
+    def __init__(self, platform, ip_address, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: ip_address
+        self.ip_address = ip_address
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        ip_address = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, ip_address, benign_c, malware_c, grayware_c)
+
+#elf_functions
+class AFELFFunction(AutoFocusAnalysis):
+
+    def __init__(self, platform, function, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: function
+        self.function = function
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        function = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, function, benign_c, malware_c, grayware_c)
+
+#elf_suspicous_behavior
+class AFELFSuspiciousBehavior(AutoFocusAnalysis):
+
+    def __init__(self, platform, description, detail, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: description
+        self.description = description
+
+        #: str: detail, typically the syscall, file path, etc... depends on context
+        self.detail = detail
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (description, detail) = line_parts[0:2]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, description, detail, benign_c, malware_c, grayware_c)
+
+#elf_file_paths
+class AFELFFilePath(AutoFocusAnalysis):
+
+    def __init__(self, platform, file_path, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: file_path
+        self.file_path = file_path
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        file_path = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, file_path, benign_c, malware_c, grayware_c)
+
+#elf_commands
+class AFELFCommands(AutoFocusAnalysis):
+
+    def __init__(self, platform, command, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: command ran by the sample
+        self.command = command
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        command = line_parts[0]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, command, benign_c, malware_c, grayware_c)
+
 #version
 class AFApkVersion(AutoFocusAnalysis):
 
@@ -3651,6 +3850,13 @@ _analysis_2_class_map['user_agent'] = AFUserAgentFragment
 _analysis_2_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
 _analysis_2_class_map['apk_app_icon'] = AFApkIcon
 _analysis_2_class_map['apk_internal_file'] = AFApkEmbeddedFile
+_analysis_2_class_map['elf_commands'] = AFELFCommands
+_analysis_2_class_map['elf_file_paths'] = AFELFFilePath
+_analysis_2_class_map['elf_suspicious_behavior'] = AFELFSuspiciousBehavior
+_analysis_2_class_map['elf_functions'] = AFELFFunction
+_analysis_2_class_map['elf_ip_address'] = AFELFIPAddress
+_analysis_2_class_map['elf_domains'] = AFELFDomain
+_analysis_2_class_map['elf_urls'] = AFELFURL
 _analysis_2_class_map['macro'] = AFRelatedMacro
 
 for k, v in _analysis_2_class_map.items():
@@ -3662,6 +3868,4 @@ for k, v in _coverage_2_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-    sample = AFSample.get("bb5a57154a1f23381a9164a2b7ea62670f0158dcd28d2e00f4d49010cbff9bbf")
-    macro = sample.get_analyses("macro")
-    macro
+    pass
