@@ -2237,6 +2237,39 @@ class AFApkIcon(AutoFocusAnalysis):
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, path, benign_c, malware_c, grayware_c)
 
+#macro
+class AFRelatedMacro(AutoFocusAnalysis):
+    """
+    Macro related to a sample
+    """
+
+    def __init__(self, platform, sha256, verdict, benign, malware, grayware):
+
+        #: str: The platform the sample analysis is from
+        self.platform = platform
+
+        #: int: The number of samples regarded as benign related to this analysis
+        self.benign_count = int(benign)
+
+        #: int: The number of samples regarded as malware related to this analysis
+        self.malware_count = int(malware)
+
+        #: int: The number of samples regarded as grayware related to this analysis
+        self.grayware_count = int(grayware)
+
+        #: str: sha256 of the macro
+        self.sha256 = sha256
+
+        #: str: the verdict of the macro
+        self.verdict = verdict.lower()
+
+    @classmethod
+    def _parse_auto_focus_response(cls, platform, sensor_data):
+
+        line_parts = sensor_data['line'].split(" , ")
+        (sha256, unknown_int, verdict) = line_parts[0:3]
+        (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
+        return cls(platform, sha256, verdict, benign_c, malware_c, grayware_c)
 
 #version
 class AFApkVersion(AutoFocusAnalysis):
@@ -3618,6 +3651,7 @@ _analysis_2_class_map['user_agent'] = AFUserAgentFragment
 _analysis_2_class_map['apk_suspicious_pattern'] = AFApkSuspiciousPattern
 _analysis_2_class_map['apk_app_icon'] = AFApkIcon
 _analysis_2_class_map['apk_internal_file'] = AFApkEmbeddedFile
+_analysis_2_class_map['macro'] = AFRelatedMacro
 
 for k, v in _analysis_2_class_map.items():
     _class_2_analysis_map[v] = k
@@ -3628,4 +3662,6 @@ for k, v in _coverage_2_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-    pass
+    sample = AFSample.get("bb5a57154a1f23381a9164a2b7ea62670f0158dcd28d2e00f4d49010cbff9bbf")
+    macro = sample.get_analyses("macro")
+    macro
