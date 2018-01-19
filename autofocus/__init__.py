@@ -1,3 +1,4 @@
+from autofocus import AFAVSignature
 from autofocus import AFAnalysisSummary
 from autofocus import AFApiActivity
 from autofocus import AFApkActivityAnalysis
@@ -11,7 +12,6 @@ from autofocus import AFApkIntentFilterAnalysis
 from autofocus import AFApkPackage
 from autofocus import AFApkReceiverAnalysis
 from autofocus import AFApkRepackaged
-from autofocus import AFApkRepackaged
 from autofocus import AFApkRequestedPermissionAnalysis
 from autofocus import AFApkSensitiveApiCallAnalysis
 from autofocus import AFApkSensorAnalysis
@@ -24,8 +24,10 @@ from autofocus import AFApkSuspiciousStringAnalysis
 from autofocus import AFApkVersion
 from autofocus import AFBehaviorAnalysis
 from autofocus import AFBehaviorTypeAnalysis
+from autofocus import AFC2DomainSignature
 from autofocus import AFClientError
 from autofocus import AFConnectionActivity
+from autofocus import AFDNSDownloadSignature
 from autofocus import AFDigitalSigner
 from autofocus import AFDnsActivity
 from autofocus import AFELFCommands
@@ -59,15 +61,25 @@ from autofocus import AFTagDefinition
 from autofocus import AFTagFactory
 from autofocus import AFTagGroup
 from autofocus import AFTagGroupAbsent
+from autofocus import AFTagGroupCache
+from autofocus import AFTagGroupFactory
 from autofocus import AFTagReference
+from autofocus import AFTelemetryAggregateFactory
+from autofocus import AFTelemetryFactory
+from autofocus import AFURLCatogorization
 from autofocus import AFUserAgentFragment
 from autofocus import AutoFocusAPI
 from autofocus import AutoFocusAnalysis
+from autofocus import AutoFocusCoverage
 from autofocus import AutoFocusException
 from autofocus import AutoFocusObject
+from autofocus import GraduatingSleep
 from autofocus import GrauduatingSleepError
+from autofocus import NotLoaded
 
-_ALL_ = [
+
+__ALL__ = [
+    "AFAVSignature",
     "AFAnalysisSummary",
     "AFApiActivity",
     "AFApkActivityAnalysis",
@@ -76,11 +88,10 @@ _ALL_ = [
     "AFApkEmbeddedFile",
     "AFApkEmbeddedLibrary",
     "AFApkEmbededUrlAnalysis",
-    "AFApkIcon"
+    "AFApkIcon",
     "AFApkIntentFilterAnalysis",
     "AFApkPackage",
     "AFApkReceiverAnalysis",
-    "AFApkRepackaged",
     "AFApkRepackaged",
     "AFApkRequestedPermissionAnalysis",
     "AFApkSensitiveApiCallAnalysis",
@@ -94,8 +105,10 @@ _ALL_ = [
     "AFApkVersion",
     "AFBehaviorAnalysis",
     "AFBehaviorTypeAnalysis",
+    "AFC2DomainSignature",
     "AFClientError",
     "AFConnectionActivity",
+    "AFDNSDownloadSignature",
     "AFDigitalSigner",
     "AFDnsActivity",
     "AFELFCommands",
@@ -129,11 +142,21 @@ _ALL_ = [
     "AFTagFactory",
     "AFTagGroup",
     "AFTagGroupAbsent",
+    "AFTagGroupCache",
+    "AFTagGroupFactory",
     "AFTagReference",
+    "AFTelemetryAggregateFactory",
+    "AFTelemetryFactory",
+    "AFURLCatogorization",
     "AFUserAgentFragment",
     "AutoFocusAPI",
     "AutoFocusAnalysis",
+    "AutoFocusCoverage",
     "AutoFocusException",
     "AutoFocusObject",
+    "GraduatingSleep",
     "GrauduatingSleepError",
+    "NotLoaded",
+    "_InvalidAnalysisData",
+    "_InvalidSampleData",
 ]
