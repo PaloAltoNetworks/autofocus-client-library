@@ -1370,6 +1370,105 @@ class AFSessionFactory(AutoFocusAPI):
         for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order):
             yield AFSession(session_id = res.get('_id'), **res['_source'])
 
+class AFTelemetryFactory(AutoFocusAPI):
+    """
+    AFTelemetryFactory is a class to handle fetching an instantiating AFTelemetry objects. See AFTelemetry for details
+    """
+
+    @classmethod
+    def search(cls, query, time_frame = '5m', sort_by = "triggers", sort_order = "desc"):
+        """
+        Notes: See AFTelemetry.search documentation
+        """
+
+        if not time_frame or time_frame not in ('4h', '5m'):
+            raise AFClientError("time_frame should be 4h or 5m in AFTelemetry Search")
+
+        page = 1
+        page_size = 1000
+        total = None
+
+        while True:
+
+            post_data = {
+                "query" : query,
+                "page" : page,
+                "perPage" : page_size,
+                "sort" : sort_by,
+                "dir" : sort_order
+            }
+
+            resp = AutoFocusAPI._api_request("/telemetry/{}/search".format(time_frame), post_data = post_data)
+
+            resp_data = resp.json()
+
+            if total == None:
+                total = resp_data['total']
+
+            if not resp_data.get('telemetry', None):
+                break
+
+            for telem in resp_data['telemetry']:
+                yield telem
+
+            if total < (page_size * page):
+                break
+
+            page += 1
+
+class AFTelemetryAggregateFactory(AutoFocusAPI):
+    """
+    AFTelemetryAggregateFactory is a class to handle fetching an instantiating AFTelemetryAggregate objects. See AFTelemetryAggregate for details
+    """
+
+    @classmethod
+    def search(cls, query, agg_by = 'top-threats', sort_by = "triggers", sort_order = "desc"):
+        """
+        Notes: See AFTelemetryAggregate.search documentation
+        """
+
+        valid_aggs = [
+            "top-threats"
+            "top-files"
+            "usage"
+            "devices"
+            "customers"
+        ]
+
+        if not agg_by not in valid_aggs:
+            raise AFClientError("agg_by should be in the following list: {}".format(",".join(valid_aggs)))
+
+        page = 1
+        page_size = 1000
+        total = None
+
+        while True:
+
+            post_data = {
+                "query" : query,
+                "page" : page,
+                "perPage" : page_size,
+                "sort" : sort_by,
+                "dir" : sort_order
+            }
+
+            resp = AutoFocusAPI._api_request("/telemetry/{}".format(agg_by), post_data = post_data)
+
+            resp_data = resp.json()
+
+            if total == None:
+                total = resp_data['total']
+
+            if not resp_data.get('telemetry', None):
+                break
+
+            for telem in resp_data['telemetry']:
+                yield telem
+
+            if total < (page_size * page):
+                break
+
+            page += 1
 
 class AFSampleFactory(AutoFocusAPI):
     """
@@ -3869,3 +3968,6 @@ for k, v in _coverage_2_class_map.items():
 
 if __name__ == "__main__":
     pass
+
+
+
