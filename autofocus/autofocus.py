@@ -1924,7 +1924,7 @@ class AFSample(AutoFocusObject):
     # TODO: Convenience method to handle searching multiple hashes (do crazy paging to get more than 100 or 10000)
     @classmethod
     def _search_hashes(cls, hashes):
-        raise NotImplemented
+        raise NotImplementedError
 
     @classmethod
     def get(cls, hash):
