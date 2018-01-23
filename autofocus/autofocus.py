@@ -9,6 +9,7 @@ import time
 import logging
 from logging import StreamHandler
 from datetime import datetime, date
+from version import __version__
 
 
 def get_logger():
@@ -56,7 +57,7 @@ except:
 #   values. So you can offer invalid IPs, such as 592.99.1.1 and it will
 #   not balk. The result set will be empty, naturally.
 
-_USER_AGENT = "GSRT AutoFocus Client Library/1.0"
+_USER_AGENT = "GSRT AutoFocus Client Library/" + __version__
 
 # A dictionaries for mapping AutoFocus Analysis Response objects
 # to their corresponding normalization classes and vice-versa
@@ -86,21 +87,25 @@ class GraduatingSleep(object):
 
     def sleep(self):
 
-        # TODO: FIX FIX FIX
-        return # Temporarily short circuiting. Have to do some more profiling to get this right with out negatively impacting the user
+##        # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
+##        # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
+##        # raise an exception
+##        sleep_time = self.__class__.init_sleep_duration
+##        sleep_time += sleep_time * math.floor(self.counter / 3)
 
-        # Graduating sleep time. Sleep for progressively longer until we get results. This logic will allow us to
-        # check results up to 185 times within 10 minutes. If we haven't gotten a full result set in 10 minutes,
-        # raise an exception
-        sleep_time = self.__class__.init_sleep_duration
-        sleep_time += sleep_time * math.floor(self.counter / 3)
+        # Changing logic to handle a 1 second sleep after three attempts
+
+        sleep_time = 0
+        if self.counter >= 3:
+            sleep_time = 1
 
         self.total_sleep_time += sleep_time
 
         if self.total_sleep_time >= self.__class__.max_sleep_duration:
             raise GrauduatingSleepError()
 
-        time.sleep(sleep_time)
+        if sleep_time:
+            time.sleep(sleep_time)
 
         self.counter += 1
 
@@ -1924,7 +1929,7 @@ class AFSample(AutoFocusObject):
     # TODO: Convenience method to handle searching multiple hashes (do crazy paging to get more than 100 or 10000)
     @classmethod
     def _search_hashes(cls, hashes):
-        raise NotImplemented
+        raise NotImplementedError
 
     @classmethod
     def get(cls, hash):
@@ -3968,6 +3973,4 @@ for k, v in _coverage_2_class_map.items():
 
 if __name__ == "__main__":
     pass
-
-
 
