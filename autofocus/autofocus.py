@@ -3972,6 +3972,4 @@ for k, v in _coverage_2_class_map.items():
     v.__autofocus_section = k
 
 if __name__ == "__main__":
-
-
-    AFTag.get("Commodity.NJRat")
+    pass
