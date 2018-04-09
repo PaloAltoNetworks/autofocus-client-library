@@ -44,6 +44,17 @@ try:
         get_logger().setLevel(logging.WARNING)
     else:
         get_logger().setLevel(logging.ERROR)
+
+    try:
+        SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
+    except:
+        SSL_VERIFY = True
+
+    try:
+        SSL_CERT = parser.get("autofocus", "ssl_cert")
+    except:
+        SSL_CERT = None
+
 except:
     get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
                          "manually before utilizing the API\n")
@@ -307,7 +318,7 @@ class AutoFocusAPI(object):
 
         get_logger().debug("Request [%s]: %s", _base_url + path, post_data)
         resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
-                             allow_redirects = False)
+                             allow_redirects = False, verify=SSL_VERIFY, cert=SSL_CERT)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
