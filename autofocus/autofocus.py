@@ -1183,6 +1183,9 @@ class AFSession(AutoFocusObject):
         # Doesn't seem to have much meaing. Making private
         self._vsys = kwargs.get("vsys")
 
+        #: str: Where the session data was uploaded from
+        self.upload_source = kwargs.get("upload_src")
+
     @classmethod
     def scan(cls, query, page_size = 10000):
         """
@@ -3973,3 +3976,4 @@ for k, v in _coverage_2_class_map.items():
 
 if __name__ == "__main__":
     pass
+
