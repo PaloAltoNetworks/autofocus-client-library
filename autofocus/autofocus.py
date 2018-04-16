@@ -27,6 +27,8 @@ def get_logger():
 
 AF_APIKEY = None
 SHOW_WARNINGS = False
+SSL_VERIFY = True
+SSL_CERT = None
 
 try:
     import ConfigParser
@@ -48,12 +50,12 @@ try:
     try:
         SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
     except:
-        SSL_VERIFY = True
-
+        pass
+        
     try:
         SSL_CERT = parser.get("autofocus", "ssl_cert")
     except:
-        SSL_CERT = None
+        pass
 
 except:
     get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
