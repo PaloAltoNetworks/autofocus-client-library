@@ -643,7 +643,6 @@ class AFTag(AutoFocusObject):
     """
 
     def __init__(self, **kwargs):
-
         #: str: The shorthand name for a tag
         self.name = kwargs["tag_name"]
 
@@ -759,7 +758,8 @@ class AFTag(AutoFocusObject):
                 get_logger().debug("Unable to load tag groups for %s: %s ", self.public_name, self._groups)
 
         #: dict: a dictionary with comments in it? Don't we have comments above?
-        #self.review = kwargs.get("review", NotLoaded())
+        #: Although we do have comments above, the review comments are a special class of comment which is treated differently by AF
+        self.review = kwargs.get("review", NotLoaded())
 
         #: int: The support id for the tag
         self.support_id = kwargs.get("support_id", NotLoaded())
