@@ -1526,7 +1526,7 @@ class AFSampleFactory(AutoFocusAPI):
             ]
             }
 
-            for sample in AFSample.search(query, page_size = 1000, attributes = attributes):
+            for sample in AFSample.search(query, attributes = attributes):
                 yield sample
 
     @classmethod
