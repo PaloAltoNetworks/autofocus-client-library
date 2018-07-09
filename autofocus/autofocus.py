@@ -1381,7 +1381,7 @@ class AFSessionFactory(AutoFocusAPI):
         Notes: See AFSession.scan documentation
         """
 
-        for res in cls._api_scan("/sessions/search", query, None, page_size):
+        for res in cls._api_scan("/sessions/search", query, None, page_size, None):
             try:
                 yield AFSession(**res['_source'])
             except _InvalidSampleData as e:
