@@ -526,7 +526,7 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _prep_post_data(cls, query, scope, size = None, sort_by = None, sort_dir = None):
+    def _prep_post_data(cls, query, scope, size = None, sort_by = None, sort_dir = None, fields = None):
 
         post_data = {}
 
@@ -542,6 +542,11 @@ class AutoFocusAPI(object):
                     "order": sort_dir if sort_dir else "asc"
                 }
             }
+
+        if fields:
+            if type(fields) is str or type(fields) is unicode:
+                fields = [fields]
+            post_data['fields'] = fields
 
         if type(query) is str or type(query) is unicode:
             post_data['query'] = json.loads(query)
@@ -563,9 +568,9 @@ class AutoFocusAPI(object):
         return cls._api_count_request(path, post_data)
 
     @classmethod
-    def _api_scan(cls, path, query, scope, page_size):
+    def _api_scan(cls, path, query, scope, page_size, fields):
 
-        post_data = cls._prep_post_data(query, scope, size = page_size)
+        post_data = cls._prep_post_data(query, scope, size = page_size, fields = fields)
 
         post_data['type'] = "scan"
 
@@ -574,9 +579,9 @@ class AutoFocusAPI(object):
                 yield hit
 
     @classmethod
-    def _api_search(cls, path, query, scope, sort_by, sort_dir):
+    def _api_search(cls, path, query, scope, sort_by, sort_dir, fields):
 
-        post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir)
+        post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir, fields = fields)
 
         for res in cls._api_search_request(path, post_data):
             for hit in res['hits']:
@@ -1376,7 +1381,7 @@ class AFSessionFactory(AutoFocusAPI):
         Notes: See AFSession.scan documentation
         """
 
-        for res in cls._api_scan("/sessions/search", query, None, page_size):
+        for res in cls._api_scan("/sessions/search", query, None, page_size, None):
             try:
                 yield AFSession(**res['_source'])
             except _InvalidSampleData as e:
@@ -1388,7 +1393,7 @@ class AFSessionFactory(AutoFocusAPI):
         Notes: See AFSession.search documentation
         """
 
-        for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order):
+        for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order, None):
             yield AFSession(session_id = res.get('_id'), **res['_source'])
 
 class AFTelemetryFactory(AutoFocusAPI):
@@ -1497,7 +1502,7 @@ class AFSampleFactory(AutoFocusAPI):
     """
 
     @classmethod
-    def list(cls, sha256s):
+    def list(cls, sha256s, attributes):
         """
         Notes: See AFSample.list documentation
         """
@@ -1521,17 +1526,32 @@ class AFSampleFactory(AutoFocusAPI):
             ]
             }
 
-            for sample in AFSample.scan(query, page_size=1000):#, "create_date", "asc"):
+            for sample in AFSample.search(query, attributes = attributes):
                 yield sample
 
     @classmethod
-    def search(cls, query, scope, sort_by, sort_order):
+    def search(cls, query, scope, sort_by, sort_order, attributes):
         """
         Notes: See AFSample.search documentation
         """
 
-        for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order):
+
+        fields = []
+        if attributes:
+            if type(attributes) in (str, unicode):
+                attributes = [attributes]
+            for attr in attributes:
+                if attr not in AFSample.attributes_to_known_fields:
+                    raise AFClientError("Unknown attribute: {}".format(attr))
+
+                fields.append(AFSample.attributes_to_known_fields[attr])
+
+        for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order, fields):
             try:
+                if attributes:
+                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
+                if 'sha256' not in res['_source']:
+                    res['_source']['sha256'] = res['_id']
                 yield AFSample(**res['_source'])
             except _InvalidSampleData as e:
                 get_logger().debug(e, exc_info=True)
@@ -1545,19 +1565,33 @@ class AFSampleFactory(AutoFocusAPI):
         return cls._api_count("/samples/search", query, scope)
 
     @classmethod
-    def scan(cls, query, scope, page_size):
+    def scan(cls, query, scope, page_size, attributes):
         """
         Notes: See AFSample.scan documentation
         """
 
-        for res in cls._api_scan("/samples/search", query, scope, page_size):
+        fields = []
+        if attributes:
+            if type(attributes) in (str, unicode):
+                attributes = [attributes]
+            for attr in attributes:
+                if attr not in AFSample.attributes_to_known_fields:
+                    raise AFClientError("Unknown attribute: {}".format(attr))
+
+                fields.append(AFSample.attributes_to_known_fields[attr])
+
+        for res in cls._api_scan("/samples/search", query, scope, page_size, fields):
             try:
+                if attributes:
+                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
+                if 'sha256' not in res['_source']:
+                    res['_source']['sha256'] = res['_id']
                 yield AFSample(**res['_source'])
             except _InvalidSampleData:
                 pass
 
     @classmethod
-    def get(cls, hash):
+    def get(cls, hash, attributes):
         """
         Notes: See AFSample.get documentation
         """
@@ -1577,7 +1611,7 @@ class AFSampleFactory(AutoFocusAPI):
             elif len(hash) == 64:
                 query['field'] = "sample.sha256"
 
-            res = AFSample.search(query).next()
+            res = AFSample.search(query, attributes = attributes).next()
         except _InvalidSampleData:
             raise AFSampleAbsent("Sample data is incomplete in AutoFocus")
         except StopIteration:
@@ -1591,6 +1625,31 @@ class AFSampleFactory(AutoFocusAPI):
 
 class AFSample(AutoFocusObject):
 
+    # All known fields. We need to prepopulate attributes with NotLoaded when we are getting a
+    # partial modal due to "fields" being offered to the API
+    attributes_to_known_fields = {
+        "create_date"      : "create_date",
+        "digital_signer"   : "digital_signer",
+        "file_type"        : "filetype",
+        "finish_date"      : "finish_date",
+        "imphash"          : "imphash",
+        "is_public"        : "ispublic",
+        "malware"          : "malware",
+        "benign"           : "malware",
+        "grayware"         : "malware",
+        "verdict"          : "malware",
+        "md5"              : "md5",
+        "multiscanner_hits": "multiscanner_hit",
+        "sha1"             : "sha1",
+        "sha256"           : "sha256",
+        "size"             : "size",
+        "source_label"     : "source_label",
+        "ssdeep"           : "ssdeep",
+        "tags"             : "tag",
+        "update_date"      : "update_date",
+        "virustotal_hits"  : "virustotal_hit"
+    }
+
     def __init__(self, **kwargs):
         """
         The AFSample should be treated as read-only object matching data found in the AutoFocus REST API. It should NOT
@@ -1599,24 +1658,19 @@ class AFSample(AutoFocusObject):
         - :func:`AFSample.get`
         """
 
-        known_attributes = ("create_date", "filetype", "malware", "md5", "sha1", "sha256", "size", "multiscanner_hit",
-                            "virustotal_hit", "source_label", "finish_date", "tag", "digital_signer", "update_date",
-                            "ssdeep", "imphash", "ispublic")
-
-        # TODO: remove this when the library matures, needless checking once we sort out attributes
-        for k, v in kwargs.items():
-            if k not in known_attributes:
-                pass
-                #sys.stderr.write("Unknown attribute for sample returned by REST service, please tell BSmall about this - %s:%s" % (k, v))
-
-        #: str: md5 sum of the sample
-        self.md5 = kwargs.get('md5', None)
+        if kwargs.get('_limit_attributes_to', []):
+            for attribute, field in self.__class__.attributes_to_known_fields.items():
+                if attribute not in kwargs['_limit_attributes_to'] and field not in kwargs:
+                    kwargs[field] = NotLoaded()
 
         #: str: sha256 sum of the sample
         self.sha256 = kwargs.get('sha256', None)
 
-        if not self.sha256 or not self.md5:
+        if not self.sha256:
             raise _InvalidSampleData()
+
+        #: str: md5 sum of the sample
+        self.md5 = kwargs.get('md5', None)
 
         #: Optional[str]: sha1 sum of the sample
         self.sha1 = kwargs.get('sha1', None)
@@ -1629,23 +1683,24 @@ class AFSample(AutoFocusObject):
 
         #:Optional[bool]: whether the sample is public or not. If is unknown, it will be None
         self.is_public = kwargs.get("ispublic", None)
-        if self.is_public:
-            self.is_public = True
-        elif self.is_public is not None:
-            self.is_public = False
+        if type(kwargs.get("ispublic", None)) is not NotLoaded:
+            if self.is_public:
+                self.is_public = True
+            elif self.is_public is not None:
+                self.is_public = False
 
         #: Optional[str] The file type of the sample
         self.file_type = kwargs.get('filetype', None)
 
         kwargs['finish_date'] = kwargs.get('finish_date', None)
-        if kwargs['finish_date']:
+        if kwargs['finish_date'] and type(kwargs['finish_date']) is not NotLoaded:
             kwargs['finish_date'] = datetime.strptime(kwargs['finish_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: Optional[datetime]: The time the first sample analysis completed
         self.finish_date = kwargs['finish_date']
 
         kwargs['update_date'] = kwargs.get('update_date', None)
-        if kwargs['update_date']:
+        if kwargs['update_date'] and type(kwargs['update_date']) is not NotLoaded:
             kwargs['update_date'] = datetime.strptime(kwargs['update_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: Optional[datetime]: The time the last sample analysis completed
@@ -1653,7 +1708,7 @@ class AFSample(AutoFocusObject):
 
         # I don't think this should be optional, but playing it safe for now
         kwargs['create_date'] = kwargs.get('create_date', None)
-        if kwargs['create_date']:
+        if kwargs['create_date'] and type(kwargs['create_date']) is not NotLoaded:
             kwargs['create_date'] = datetime.strptime(kwargs['create_date'], '%Y-%m-%dT%H:%M:%S')
 
         #: datetime: The time the sample was first seen by the system
@@ -1676,19 +1731,22 @@ class AFSample(AutoFocusObject):
         }
 
         #: Optional[str]: The verdict of the sample as a string. Will be None if the sample doesn't have a verdict
-        self.verdict = None
+        self.verdict = NotLoaded()
 
         if kwargs.get('malware', None) in wf_verdict_map:
             self.verdict = wf_verdict_map[kwargs['malware']]
 
-        #: bool: Whether WildFire thinks the sample is benign or not
-        self.benign = True if kwargs.get('malware', None) == 0 else False
-
-        #: bool: Whether WildFire thinks the sample is grayware or not
-        self.grayware = True if kwargs.get('malware', None) == 2 else False
-
-        #: bool: Whether WildFire thinks the sample is Malware or not
-        self.malware = True if kwargs.get('malware', None) == 1 else False
+        if type(kwargs.get("malware", None)) != NotLoaded:
+            #: bool: Whether WildFire thinks the sample is benign or not
+            self.benign = True if kwargs.get('malware', None) == 0 else False
+            #: bool: Whether WildFire thinks the sample is grayware or not
+            self.grayware = True if kwargs.get('malware', None) == 2 else False
+            #: bool: Whether WildFire thinks the sample is Malware or not
+            self.malware = True if kwargs.get('malware', None) == 1 else False
+        else:
+            self.benign = NotLoaded()
+            self.grayware = NotLoaded()
+            self.malware = NotLoaded()
 
         #: int: The size of the sample in bytes
         self.size = kwargs['size']
@@ -1721,12 +1779,20 @@ class AFSample(AutoFocusObject):
 
             value = []
 
-            for tag_name in object.__getattribute__(self, "_tags"):
+            tag_names = getattr(self, "_tags")
 
-                # TODO: Consider what might happen here if the tagname isn't in the DB
+            for tag_name in tag_names:
                 value.append(AFTag.get(tag_name))
 
-            self.tags = value
+            object.__setattr__(self, 'tags', value)
+
+        elif type(value) is NotLoaded:
+
+            new_sample = AFSample.get(self.sha256)
+            for k,v in new_sample.__dict__.items():
+                object.__setattr__(self, k, v)
+                if k == attr:
+                    value = v
 
         return value
 
@@ -1782,7 +1848,7 @@ class AFSample(AutoFocusObject):
         return AFSampleFactory.count(query, scope)
 
     @classmethod
-    def scan(cls, query, scope = "global", page_size = 10000):
+    def scan(cls, query, scope = "global", page_size = 10000, attributes = None):
         """
 
         The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
@@ -1824,6 +1890,7 @@ class AFSample(AutoFocusObject):
         Args:
             query str:The query to run against autofocus (will also take dicts per examples)
             scope Optional[str]:The scope of the search you're running. Defaults to "global"
+            attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -1835,11 +1902,11 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.scan(query, scope, page_size):
+        for sample in AFSampleFactory.scan(query, scope, page_size, attributes):
             yield sample
 
     @classmethod
-    def list(cls, sha256s):
+    def list(cls, sha256s, attributes = None):
         """
 
         The AFSample.list method is a factory to return AFSample object instances. This correspond to the list of hashes
@@ -1871,6 +1938,7 @@ class AFSample(AutoFocusObject):
                     pass # The client did something stupid, likely a bad query was passed
         Args:
             sha25s List[str]: The sha256s to look up
+            attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -1882,11 +1950,11 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.list(sha256s):
+        for sample in AFSampleFactory.list(sha256s, attributes):
             yield sample
 
     @classmethod
-    def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc"):
+    def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc", attributes = None):
         """
 
         The AFSample.search method is a factory to return AFSample object instances. These correspond to values returned
@@ -1928,6 +1996,7 @@ class AFSample(AutoFocusObject):
             scope Optional[str]:The scope of the search you're running. Defaults to "global"
             sort_by Optional[str]: The field to sort results by
             sort_order Optional[str]; asc or desc sort order
+            attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -1939,7 +2008,7 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.search(query, scope, sort_by, sort_order):
+        for sample in AFSampleFactory.search(query, scope, sort_by, sort_order, attributes):
             yield sample
 
     # TODO: Convenience method to handle searching multiple hashes (do crazy paging to get more than 100 or 10000)
@@ -1948,10 +2017,11 @@ class AFSample(AutoFocusObject):
         raise NotImplementedError
 
     @classmethod
-    def get(cls, hash):
+    def get(cls, hash, attributes = None):
         """
         Args:
             hash (str): either a md5, sha1, or sha256 hash of the sample needed
+            attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
 
         Returns:
             AFSample: Instance of AFSample that matches the hash offered
@@ -1973,7 +2043,7 @@ class AFSample(AutoFocusObject):
                     pass # Sample didn't exist
 
         """
-        return AFSampleFactory.get(hash)
+        return AFSampleFactory.get(hash, attributes)
 
     def get_activity(self, sections = None, platforms = None):
         """
@@ -3989,4 +4059,3 @@ for k, v in _coverage_2_class_map.items():
 
 if __name__ == "__main__":
     pass
-
