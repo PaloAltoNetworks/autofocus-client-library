@@ -1,4 +1,4 @@
-from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragment
+from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragment, AFRelatedMacro
 
 #AutoFocusAPI.api_key = "<my API key>"
 
@@ -77,6 +77,9 @@ sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f1
 for analysis in sample.get_analyses(['behavior_type']):
     print type(analysis)
 
+# Retrieve Macro Hash
+for analysis in AFSample.get_analyses_by_hash("bf2f1c68a5e043a1ed83603a0768c3ec9bd49706c5124c692f43db0e35fc0b54", AFRelatedMacro):
+    print analysis
 
 #Connection testing hashes
 test_hashes = (
