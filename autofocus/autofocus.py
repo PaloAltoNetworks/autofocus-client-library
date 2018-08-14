@@ -1749,7 +1749,7 @@ class AFSample(AutoFocusObject):
             self.malware = NotLoaded()
 
         #: Optional[int]: The size of the sample in bytes
-        self.size = kwargs.get('size')
+        self.size = kwargs.get('size', None)
 
         #: List[AFTag]: A list of tags
         self.tags = NotLoaded()
