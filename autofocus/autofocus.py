@@ -1792,7 +1792,7 @@ class AFSample(AutoFocusObject):
             for k,v in new_sample.__dict__.items():
                 object.__setattr__(self, k, v)
                 if k == attr:
-                    value = v
+                    value = v if not isinstance(v, NotLoaded) else None
 
         return value
 
