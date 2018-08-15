@@ -51,7 +51,7 @@ try:
         SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
     except:
         pass
-        
+
     try:
         SSL_CERT = parser.get("autofocus", "ssl_cert")
     except:
