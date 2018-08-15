@@ -1748,13 +1748,13 @@ class AFSample(AutoFocusObject):
             self.grayware = NotLoaded()
             self.malware = NotLoaded()
 
-        #: int: The size of the sample in bytes
-        self.size = kwargs['size']
+        #: Optional[int]: The size of the sample in bytes
+        self.size = kwargs.get('size', None)
 
         #: List[AFTag]: A list of tags
         self.tags = NotLoaded()
 
-        #: Optiona[int]: TODO needs documentation
+        #: Optional[int]: TODO needs documentation
         self.multiscanner_hits = kwargs.get("multiscanner_hit", None)
 
         #: Optiona[int]: how many sources regard the sample to be malicious in Virus Total
@@ -1792,7 +1792,7 @@ class AFSample(AutoFocusObject):
             for k,v in new_sample.__dict__.items():
                 object.__setattr__(self, k, v)
                 if k == attr:
-                    value = v
+                    value = v if not isinstance(v, NotLoaded) else None
 
         return value
 
