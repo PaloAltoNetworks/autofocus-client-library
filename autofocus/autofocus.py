@@ -51,7 +51,7 @@ try:
         SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
     except:
         pass
-        
+
     try:
         SSL_CERT = parser.get("autofocus", "ssl_cert")
     except:
@@ -273,6 +273,10 @@ class AutoFocusObject(object):
                 # to prevent huge data returns and infinite loops
                 if depth > 1:
                     serialized[k] = v.serialize(depth=depth - 1)
+            elif isinstance(v, NotLoaded):
+                # this really shouldn't be happening
+                get_logger().warning("Failed to load '%s:%s' while serializing - setting to None", k, v)
+                serialized[k] = None
             else:
                 if isinstance(v, (datetime, date)):
                     serialized[k] = v.isoformat()
