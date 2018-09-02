@@ -663,7 +663,11 @@ class AFTag(AutoFocusObject):
 
         last_hit = kwargs.get('lasthit', None)
         if last_hit:
-            last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+            try:
+                last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+            except:
+                get_logger().warning("Couldn't parse last hit time on tag {}".format(self.public_name))
+                last_hit = None
 
         #: Optional[datetime]: the last time there was activity witnessed for the tag
         self.last_hit = last_hit
