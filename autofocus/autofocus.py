@@ -7,7 +7,6 @@ import re
 import requests
 import time
 import logging
-from logging import StreamHandler
 from datetime import datetime, date
 from version import __version__
 
@@ -32,15 +31,23 @@ SSL_CERT = None
 
 try:
     import ConfigParser
-    parser = ConfigParser.ConfigParser()
+    defaults = {
+        "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
+        "ssl_verify": 'true',
+        "ignore_warnings": 'false'
+    }
+    parser = ConfigParser.ConfigParser(defaults=defaults)
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
     parser.read(os.path.expanduser(conf_path))
+
+    if not parser.has_section("autofocus"):
+        parser.add_section("autofocus")
+
     AF_APIKEY = parser.get("autofocus", "apikey")
-    try:
-        ignore_warnings = parser.getboolean("autofocus", "ignore_warnings")
-        SHOW_WARNINGS = False if ignore_warnings else True
-    except:
-        SHOW_WARNINGS = False
+    SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
+    _base_url = parser.get("autofocus", "api_base")
+    ignore_warnings = parser.getboolean("autofocus", "ignore_warnings")
+    SHOW_WARNINGS = False if ignore_warnings else True
 
     if SHOW_WARNINGS:
         get_logger().setLevel(logging.WARNING)
@@ -48,18 +55,14 @@ try:
         get_logger().setLevel(logging.ERROR)
 
     try:
-        SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
-    except:
-        pass
-
-    try:
         SSL_CERT = parser.get("autofocus", "ssl_cert")
-    except:
+    except Exception:
         pass
 
-except:
-    get_logger().warning("No AutoFocus API key found in ~/.config/panw. Please remember to specify your API key "
-                         "manually before utilizing the API\n")
+except Exception as e:
+    print e
+    get_logger().warning("No AutoFocus API key found in %s. Please remember to specify your API key "
+                         "manually before utilizing the API\n" % conf_path)
 
 
 # Useful information:
@@ -79,8 +82,6 @@ _class_2_analysis_map = {}
 
 _coverage_2_class_map = {}
 _class_2_coverage_map = {}
-
-_base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 
 
 class GrauduatingSleepError(Exception):
