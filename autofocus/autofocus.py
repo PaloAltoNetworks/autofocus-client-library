@@ -2686,7 +2686,7 @@ class AFELFFileActivity(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-        #: str: The attempted action taken on a file
+	#: str: The attempted action taken on a file
         self.file_action = file_action
 
 	#: str: The affected file's name
@@ -2705,7 +2705,7 @@ class AFELFFileActivity(AutoFocusAnalysis):
 #elf_command_action
 class AFELFCommandAction(AutoFocusAnalysis):
 
-    def __init__(self, platform, commandaction, benign, malware, grayware):
+    def __init__(self, platform, cmd, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -2720,20 +2720,20 @@ class AFELFCommandAction(AutoFocusAnalysis):
         self.grayware_count = int(grayware)
 
         #: str: command ran by the sample
-        self.commandaction = commandaction
+        self.cmd = cmd
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
 
         line_parts = sensor_data['line'].split(" , ")
-        commandaction = line_parts[0]
+        cmd = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
-        return cls(platform, commandaction, benign_c, malware_c, grayware_c)
+        return cls(platform, cmd, benign_c, malware_c, grayware_c)
 
 #elf_suspicious_action
 class AFELFSuspiciousActionMonitored(AutoFocusAnalysis):
 
-    def __init__(self, platform, suspiciousaction, benign, malware, grayware):
+    def __init__(self, platform, action, benign, malware, grayware):
 
         #: str: The platform the sample analysis is from
         self.platform = platform
@@ -2748,15 +2748,15 @@ class AFELFSuspiciousActionMonitored(AutoFocusAnalysis):
         self.grayware_count = int(grayware)
 
         #: str: command ran by the sample
-        self.suspiciousaction = suspiciousaction
+        self.action = action
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, sensor_data):
         
         line_parts = sensor_data['line'].split(" , ")
-        suspiciousaction = line_parts[0]
+        action = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
-        return cls(platform, suspiciousaction, benign_c, malware_c, grayware_c)
+        return cls(platform, action, benign_c, malware_c, grayware_c)
 
 #version
 class AFApkVersion(AutoFocusAnalysis):
