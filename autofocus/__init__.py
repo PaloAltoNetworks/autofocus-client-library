@@ -30,11 +30,14 @@ from autofocus import AFConnectionActivity
 from autofocus import AFDNSDownloadSignature
 from autofocus import AFDigitalSigner
 from autofocus import AFDnsActivity
+from autofocus import AFELFCommandAction
 from autofocus import AFELFCommands
 from autofocus import AFELFDomain
+from autofocus import AFELFFileActivity
 from autofocus import AFELFFilePath
 from autofocus import AFELFFunction
 from autofocus import AFELFIPAddress
+from autofocus import AFELFSuspiciousActionMonitored
 from autofocus import AFELFSuspiciousBehavior
 from autofocus import AFELFURL
 from autofocus import AFFileActivity
@@ -111,11 +114,14 @@ __ALL__ = [
     "AFDNSDownloadSignature",
     "AFDigitalSigner",
     "AFDnsActivity",
+    "AFELFCommandAction",
     "AFELFCommands",
     "AFELFDomain",
+    "AFELFFileActivity",
     "AFELFFilePath",
     "AFELFFunction",
     "AFELFIPAddress",
+    "AFELFSuspiciousActionMonitored",
     "AFELFSuspiciousBehavior",
     "AFELFURL",
     "AFFileActivity",
