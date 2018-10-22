@@ -2686,11 +2686,11 @@ class AFELFFileActivity(AutoFocusAnalysis):
         #: int: The number of samples regarded as grayware related to this analysis
         self.grayware_count = int(grayware)
 
-	#: str: The attempted action taken on a file
+        #: str: The attempted action taken on a file
         self.file_action = file_action
 
-	#: str: The affected file's name
-	self.file_name = file_name
+        #: str: The affected file's name
+        self.file_name = file_name
 
     @classmethod
     def _parse_auto_focus_response(cls, platform, file_data):
