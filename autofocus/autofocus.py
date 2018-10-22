@@ -324,8 +324,15 @@ class AutoFocusAPI(object):
         }
 
         get_logger().debug("Request [%s]: %s", _base_url + path, post_data)
-        resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
-                             allow_redirects = False, verify=SSL_VERIFY, cert=SSL_CERT)
+
+        try:
+            resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
+                                 allow_redirects = False, verify=SSL_VERIFY, cert=SSL_CERT)
+        except requests.ConnectionError as e:
+            get_logger().warning("AF ConnectionError: %s - path:%s af_cookie:%s",
+                                 e.message, path, af_cookie)
+            if e_code_skips < 3:
+                return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
