@@ -404,6 +404,37 @@ class AutoFocusAPI(object):
                 raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
 
     @classmethod
+    def _api_agg_request(cls, path, post_data):
+
+        init_query_time = time.time()
+        init_query_resp = cls._api_request(path, post_data=post_data)
+        init_query_data = init_query_resp.json()
+        af_cookie = init_query_data['af_cookie']
+
+        sleeper = GraduatingSleep()
+
+        # We'll poll the result bucket until we get a complete query and then we'll return the count
+        while True:
+
+            request_url = "/" + path.split("/")[1] + "/aggregate/results/" + af_cookie
+            resp = cls._api_request(request_url, af_cookie=af_cookie)
+
+            # Look for malformed JSON
+            try:
+                resp_data = resp.json()
+            except:
+                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
+                    af_cookie, resp._content), resp)
+
+            if resp_data.get('af_complete_percentage', 100) == 100:
+                return resp_data['aggregations']
+
+            try:
+                sleeper.sleep()
+            except GrauduatingSleepError:
+                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
+
+    @classmethod
     def _api_scan_request(cls, path, post_data):
 
         post_data["size"] = post_data.get("size", cls.page_size)
@@ -1638,6 +1669,19 @@ class AFSampleFactory(AutoFocusAPI):
 
         return res
 
+    @classmethod
+    def aggregate(cls, query, scope, field, size=10):
+
+        req = {
+            "field": field,
+            "scope": scope,
+            "query": query,
+            "size": size
+        }
+
+        resp = cls._api_agg_request("/samples/aggregate/search/", post_data=req)
+        return resp
+
 
 class AFSample(AutoFocusObject):
 
@@ -1811,6 +1855,10 @@ class AFSample(AutoFocusObject):
                     value = v if not isinstance(v, NotLoaded) else None
 
         return value
+
+    @classmethod
+    def aggregate(cls, query, scope="global", field="malware"):
+        return AFSampleFactory.aggregate(query, scope, field)
 
     @classmethod
     def count(cls, query, scope = "global"):
