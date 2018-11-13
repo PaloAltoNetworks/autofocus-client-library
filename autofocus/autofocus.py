@@ -188,11 +188,14 @@ class AFServerError(AutoFocusException):
 class AFSampleAbsent(AutoFocusException, KeyError):
     pass
 
+
 class AFTagAbsent(AutoFocusException, KeyError):
     pass
 
+
 class AFTagGroupAbsent(AutoFocusException, KeyError):
     pass
+
 
 class _InvalidSampleData(Exception):
     """
@@ -325,6 +328,7 @@ class AutoFocusAPI(object):
 
         get_logger().debug("Request [%s]: %s", _base_url + path, post_data)
 
+        resp = None
         try:
             resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
                                  allow_redirects = False, verify=SSL_VERIFY, cert=SSL_CERT)
@@ -336,20 +340,20 @@ class AutoFocusAPI(object):
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
-        if not (resp.status_code >= 200 and resp.status_code < 300):
+        if not (200 <= resp.status_code < 300):
 
             message = resp._content
 
             if af_cookie:
                 message = "AF_COOKIE - {}\n{}".format(af_cookie, message)
 
-            if resp.status_code >= 300 and resp.status_code < 400:
+            if 300 <= resp.status_code < 400:
                 raise AFRedirectError("Unexpected redirect", resp)
 
-            if resp.status_code >= 400 and resp.status_code < 500:
+            if 400 <= resp.status_code < 500:
                 raise AFClientError(message, resp)
 
-            if resp.status_code >= 500 and resp.status_code < 600:
+            if 500 <= resp.status_code < 600:
 
                 # Retrying E101x errors, per Tarun Singh
                 try:
@@ -361,7 +365,7 @@ class AutoFocusAPI(object):
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                     else:
                         raise AFServerError(e.message, resp)
-                except:
+                except Exception:
                     pass
 
                 raise AFServerError(message, resp)
@@ -458,7 +462,7 @@ class AutoFocusAPI(object):
             # Look for malformed JSON
             try:
                 resp_data = resp.json()
-            except:
+            except Exception:
                 raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
                     af_cookie, resp._content), resp)
 
@@ -534,7 +538,7 @@ class AutoFocusAPI(object):
                 # Look for malformed JSON
                 try:
                     resp_data = resp.json()
-                except:
+                except Exception:
                     raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(af_cookie, resp._content), resp)
 
                 # We should always have 'af_in_progress' in resp_data.
@@ -630,6 +634,7 @@ class AutoFocusAPI(object):
             for hit in res['hits']:
                 yield hit
 
+
 class AFTagDefinition(AutoFocusObject):
     def __init__(self, **kwargs):
 
@@ -658,6 +663,7 @@ class AFTagDefinition(AutoFocusObject):
     def __str__(self):
         return self.ui_search_definition
 
+
 class AFTagReference(AutoFocusObject):
 
     def __init__(self, **kwargs):
@@ -675,7 +681,6 @@ class AFTagReference(AutoFocusObject):
 
         #: str: url for the reference
         self.url = kwargs.get("url", "").encode('utf8')
-
 
     def __str__(self):
         return self.url
@@ -704,7 +709,7 @@ class AFTag(AutoFocusObject):
         if last_hit:
             try:
                 last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
-            except:
+            except Exception:
                 get_logger().warning("Couldn't parse last hit time on tag {}".format(self.public_name))
                 last_hit = None
 
@@ -715,7 +720,7 @@ class AFTag(AutoFocusObject):
         if created:
             try:
                 created = datetime.strptime(created, '%Y-%m-%d %H:%M:%S')
-            except:
+            except Exception:
                 get_logger().warning("Couldn't parse created time on tag {}".format(self.public_name))
                 created = None
 
@@ -726,7 +731,7 @@ class AFTag(AutoFocusObject):
         if updated:
             try:
                 updated = datetime.strptime(updated, '%Y-%m-%d %H:%M:%S')
-            except:
+            except Exception:
                 get_logger().warning("Couldn't parse updated time on tag {}".format(self.public_name))
                 updated = None
 
@@ -923,6 +928,7 @@ class AFTag(AutoFocusObject):
         """
         return AFTagFactory.get(tag_name)
 
+
 class AFTagGroupCache(object):
 
     _cache = {}
@@ -939,6 +945,7 @@ class AFTagGroupCache(object):
     @classmethod
     def clear(cls, tag_group):
         del cls._cache[tag_group.name]
+
 
 class AFTagCache(object):
 
@@ -970,7 +977,6 @@ class AFTagFactory(AutoFocusAPI):
         """
         return AFTag.search([{"field":"tag_group","operator":"is","value":group_name}])
 
-
     @classmethod
     def search(cls, query, *args, **kwargs):
         """
@@ -982,7 +988,7 @@ class AFTagFactory(AutoFocusAPI):
         try:
             if type(query) not in (list, dict):
                 kwargs['query'] = json.loads(query)
-        except:
+        except Exception:
             raise AFClientError("Query is not valid JSON")
 
         return AFTagFactory.list(*args, **kwargs)
@@ -1111,6 +1117,7 @@ class AFTagGroup(AutoFocusObject):
             value = object.__getattribute__(self, attr)
 
         return value
+
 
 class AFTagGroupFactory(AutoFocusAPI):
 
@@ -1443,6 +1450,7 @@ class AFSessionFactory(AutoFocusAPI):
         for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order, None):
             yield AFSession(session_id = res.get('_id'), **res['_source'])
 
+
 class AFTelemetryFactory(AutoFocusAPI):
     """
     AFTelemetryFactory is a class to handle fetching an instantiating AFTelemetry objects. See AFTelemetry for details
@@ -1475,7 +1483,7 @@ class AFTelemetryFactory(AutoFocusAPI):
 
             resp_data = resp.json()
 
-            if total == None:
+            if total is None:
                 total = resp_data['total']
 
             if not resp_data.get('telemetry', None):
@@ -1488,6 +1496,7 @@ class AFTelemetryFactory(AutoFocusAPI):
                 break
 
             page += 1
+
 
 class AFTelemetryAggregateFactory(AutoFocusAPI):
     """
@@ -1529,7 +1538,7 @@ class AFTelemetryAggregateFactory(AutoFocusAPI):
 
             resp_data = resp.json()
 
-            if total == None:
+            if total is None:
                 total = resp_data['total']
 
             if not resp_data.get('telemetry', None):
@@ -1542,6 +1551,7 @@ class AFTelemetryAggregateFactory(AutoFocusAPI):
                 break
 
             page += 1
+
 
 class AFSampleFactory(AutoFocusAPI):
     """
@@ -1581,7 +1591,6 @@ class AFSampleFactory(AutoFocusAPI):
         """
         Notes: See AFSample.search documentation
         """
-
 
         fields = []
         if attributes:
@@ -2266,6 +2275,7 @@ class AFSample(AutoFocusObject):
 
         return analyses
 
+
 class AutoFocusCoverage(AutoFocusObject):
 
     def __init__(self, obj_data):
@@ -2275,6 +2285,7 @@ class AutoFocusCoverage(AutoFocusObject):
     @classmethod
     def _parse_auto_focus_response(cls, platform, resp_data):
         return cls(resp_data)
+
 
 class AutoFocusAnalysis(AutoFocusObject):
 
@@ -2750,12 +2761,13 @@ class AFELFFileActivity(AutoFocusAnalysis):
     @classmethod
     def _parse_auto_focus_response(cls, platform, file_data):
       
-	line_parts = file_data['line'].split(" , ")
-	if len(line_parts) == 2:
-		(file_action, file_name) = line_parts[0:2]
+        line_parts = file_data['line'].split(" , ")
+        if len(line_parts) == 2:
+            (file_action, file_name) = line_parts[0:2]
         
-	(benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
+        (benign_c, malware_c, grayware_c) = (file_data.get('b', 0), file_data.get('m', 0), file_data.get('g', 0))
         return cls(platform, file_action, file_name, benign_c, malware_c, grayware_c)
+
 
 #elf_command_action
 class AFELFCommandAction(AutoFocusAnalysis):
@@ -2785,6 +2797,7 @@ class AFELFCommandAction(AutoFocusAnalysis):
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, cmd, benign_c, malware_c, grayware_c)
 
+
 #elf_suspicious_action
 class AFELFSuspiciousActionMonitored(AutoFocusAnalysis):
 
@@ -2812,6 +2825,7 @@ class AFELFSuspiciousActionMonitored(AutoFocusAnalysis):
         action = line_parts[0]
         (benign_c, malware_c, grayware_c) = (sensor_data.get('b', 0), sensor_data.get('m', 0), sensor_data.get('g', 0))
         return cls(platform, action, benign_c, malware_c, grayware_c)
+
 
 #version
 class AFApkVersion(AutoFocusAnalysis):
@@ -4148,6 +4162,7 @@ class AFDNSDownloadSignature(AutoFocusCoverage):
 
         #: int: The latest daily release version the signature was included in
         self.latest_daily_release = kwargs.get("last_added_daily")
+
 
 _coverage_2_class_map['dns_sig'] = AFC2DomainSignature
 _coverage_2_class_map['url_cat'] = AFURLCatogorization
