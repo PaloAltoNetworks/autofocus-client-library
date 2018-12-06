@@ -12,8 +12,8 @@ try:
     sample = AFSample.get(hash)
 
     # Using instrospection, you can analyze the attributes of the AFSample instance
-    print "Pulled sample {} and got the follow attributes".format(hash)
-    for k,v in sample.__dict__.items():
+    print "Pulled sample {} and got the following attributes".format(hash)
+    for k,v in sample.serialize().items():
         print "\t{}={}".format(k, v)
 
 except AFSampleAbsent:
@@ -39,8 +39,8 @@ for sample in AFSample.search(query):
 #################################
 
 # Get a list of hashes you're interested in looking for
-# IMPORTANT: The API currently has a 100 hash limit per query. You'll have to chunk hashes
-# if you want to run more than 100 hashes.
+# IMPORTANT: The API currently has a 1000 hash limit per query. You'll have to chunk hashes
+# if you want to run more than 1000 hashes.
 hashes = [
     "7f38fd3e55a4139d788a4475ab0a5d83bf7686a37ef5e54a65364a0d781b523c",
     "9906a8a55e5a50d2993408c7f1ba9cf97d8f38ca3fe68750bb62a8d0785b8c4b",
@@ -60,3 +60,16 @@ for sample in AFSample.search(search_terms):
 
     # Do cool things with sample
     print "{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size)
+
+# You can do the same thing but using a built in helper like this:
+
+for sample in AFSample.list(hashes):
+    # Do cool things with sample
+    print "{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size)
+
+# You can also specify attributes that you want it to return like this:
+
+
+for sample in AFSample.list(hashes, attributes=["sha256", "size"]):
+    # Do cool things with sample
+    print "{} is {} bytes large".format(sample.sha256, sample.size)
