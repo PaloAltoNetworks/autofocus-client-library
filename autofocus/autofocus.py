@@ -32,9 +32,10 @@ SSL_CERT = None
 try:
     import ConfigParser
     defaults = {
-        "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
+        "apikey": "",
         "ssl_verify": 'true',
-        "ignore_warnings": 'false'
+        "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
+        "ignore_warnings": 'false',
     }
     parser = ConfigParser.ConfigParser(defaults=defaults)
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
@@ -61,8 +62,7 @@ try:
 
 except Exception as e:
     print e
-    get_logger().warning("No AutoFocus API key found in %s. Please remember to specify your API key "
-                         "manually before utilizing the API\n" % conf_path)
+    get_logger().warning("Error reading configuration file %s." % conf_path)
 
 
 # Useful information:
@@ -317,7 +317,8 @@ class AutoFocusAPI(object):
             AutoFocusAPI.api_key = AF_APIKEY
 
         if not AutoFocusAPI.api_key:
-            raise AFClientError("AF_APIKEY is not set. Library requires an APIKEY to be set")
+            raise AFClientError("API key is not set. Library requires AutoFocusAPI.api_key to be set, or apikey "
+                                "to be provided via configuration file.")
 
         post_data["apiKey"] = AutoFocusAPI.api_key
 
