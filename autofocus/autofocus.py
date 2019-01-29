@@ -1717,7 +1717,8 @@ class AFSample(AutoFocusObject):
         "ssdeep"           : "ssdeep",
         "tags"             : "tag",
         "update_date"      : "update_date",
-        "virustotal_hits"  : "virustotal_hit"
+        "virustotal_hits"  : "virustotal_hit",
+        "region"           : "region"
     }
 
     def __init__(self, **kwargs):
@@ -1838,6 +1839,9 @@ class AFSample(AutoFocusObject):
 
         # Private _tags
         self._tags = kwargs.get('tag', [])
+
+        # List[str]: list of regions seen in
+        self.regions = kwargs.get("region", [])
 
     def __getattribute__(self, attr):
 
