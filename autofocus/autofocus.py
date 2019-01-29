@@ -1839,6 +1839,9 @@ class AFSample(AutoFocusObject):
         # Private _tags
         self._tags = kwargs.get('tag', [])
 
+        # List[str]: list of regions seen in
+        self.regions = kwargs.get("region", [])
+
     def __getattribute__(self, attr):
 
         value = object.__getattribute__(self, attr)
