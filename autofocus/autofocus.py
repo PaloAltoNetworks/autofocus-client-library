@@ -1717,7 +1717,8 @@ class AFSample(AutoFocusObject):
         "ssdeep"           : "ssdeep",
         "tags"             : "tag",
         "update_date"      : "update_date",
-        "virustotal_hits"  : "virustotal_hit"
+        "virustotal_hits"  : "virustotal_hit",
+        "region"           : "region"
     }
 
     def __init__(self, **kwargs):
