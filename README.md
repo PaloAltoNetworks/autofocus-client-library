@@ -13,10 +13,14 @@ Remember to create the file `~/.config/panw` and add the following section to it
 [autofocus]
 apikey=your-af-api-key-goes-here
 
-# optional parameters below with their default values
-# ignore_warnings = false  # whether or not warning log level is displayed
-# ssl_verify = true  # disable ssl verification (not recommended unless debugging SSL/CA issues)
-# ssl_cert = <some_path>  # uses default requests ca bundle by default, can override here by specifying path
+# whether or not warning log level is displayed
+# ignore_warnings = false
+
+# disable ssl verification (not recommended unless debugging SSL/CA issues)
+# ssl_verify = true
+
+# uses default requests ca bundle by default, can override here by specifying path
+# ssl_cert = <some_path>
 ```
 
 If you write a script that isn't being run by your user, you can always manually set the API key via the following
