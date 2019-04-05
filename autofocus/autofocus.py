@@ -311,7 +311,7 @@ class AutoFocusAPI(object):
         return self.__dict__.__str__()
 
     @classmethod
-    def _api_request(cls, path, post_data = {}, params = {}, e_code_skips = 0, af_cookie = None):
+    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None):
 
         if not AutoFocusAPI.api_key:
             AutoFocusAPI.api_key = AF_APIKEY
@@ -331,8 +331,8 @@ class AutoFocusAPI(object):
 
         resp = None
         try:
-            resp = requests.post(_base_url + path, params = params, headers=headers, data=json.dumps(post_data),
-                                 allow_redirects = False, verify=SSL_VERIFY, cert=SSL_CERT)
+            resp = requests.post(_base_url + path, params=params, headers=headers, data=json.dumps(post_data),
+                                 allow_redirects=False, verify=SSL_VERIFY, cert=SSL_CERT)
         except requests.ConnectionError as e:
             get_logger().warning("AF ConnectionError: %s - path:%s af_cookie:%s",
                                  e.message, path, af_cookie)
@@ -446,7 +446,7 @@ class AutoFocusAPI(object):
 
         actual_res_count = 0
 
-        init_query_resp = cls._api_request(path, post_data = post_data)
+        init_query_resp = cls._api_request(path, post_data=post_data)
         init_query_data = init_query_resp.json()
         af_cookie = init_query_data['af_cookie']
 
@@ -458,7 +458,7 @@ class AutoFocusAPI(object):
 
             request_url = "/" + path.split("/")[1] + "/results/" + af_cookie
 
-            resp = cls._api_request(request_url, af_cookie = af_cookie)
+            resp = cls._api_request(request_url, af_cookie=af_cookie)
 
             # Look for malformed JSON
             try:
@@ -520,7 +520,7 @@ class AutoFocusAPI(object):
                 if post_data['from'] + post_data['size'] > 4000:
                     post_data['size'] = 4000 - post_data['from']
 
-            init_query_resp = cls._api_request(path, post_data = post_data)
+            init_query_resp = cls._api_request(path, post_data=post_data)
             init_query_data = init_query_resp.json()
             post_data['from'] += post_data['size']
             af_cookie = init_query_data['af_cookie']
@@ -574,7 +574,7 @@ class AutoFocusAPI(object):
             yield resp_data
 
     @classmethod
-    def _prep_post_data(cls, query, scope, size = None, sort_by = None, sort_dir = None, fields = None):
+    def _prep_post_data(cls, query, scope, size=None, sort_by=None, sort_dir=None, fields=None):
 
         post_data = {}
 
@@ -616,24 +616,40 @@ class AutoFocusAPI(object):
         return cls._api_count_request(path, post_data)
 
     @classmethod
-    def _api_scan(cls, path, query, scope, page_size, fields):
+    def _api_scan(cls, path, query, scope, page_size, fields, limit):
 
-        post_data = cls._prep_post_data(query, scope, size = page_size, fields = fields)
+        post_data = cls._prep_post_data(query, scope, size=page_size, fields=fields)
 
         post_data['type'] = "scan"
 
+        count = 0
+        hit_limit = False
         for res in cls._api_scan_request(path, post_data):
             for hit in res['hits']:
                 yield hit
+                count += 1
+                if count >= limit > 0:
+                    hit_limit = True
+                    break
+            if hit_limit:
+                break
 
     @classmethod
-    def _api_search(cls, path, query, scope, sort_by, sort_dir, fields):
+    def _api_search(cls, path, query, scope, sort_by, sort_dir, fields, limit):
 
-        post_data = cls._prep_post_data(query, scope, sort_by = sort_by, sort_dir = sort_dir, fields = fields)
+        post_data = cls._prep_post_data(query, scope, sort_by=sort_by, sort_dir=sort_dir, fields=fields)
 
+        count = 0
+        hit_limit = False
         for res in cls._api_search_request(path, post_data):
             for hit in res['hits']:
                 yield hit
+                count += 1
+                if count >= limit > 0:
+                    hit_limit = True
+                    break
+            if hit_limit:
+                break
 
 
 class AFTagDefinition(AutoFocusObject):
@@ -1260,7 +1276,7 @@ class AFSession(AutoFocusObject):
         self.upload_source = kwargs.get("upload_src")
 
     @classmethod
-    def scan(cls, query, page_size = 10000):
+    def scan(cls, query, page_size = 10000, limit=0):
         """
 
         The AFSession.scan method is a factory to return AFSession object instances. These correspond to values returned
@@ -1301,6 +1317,7 @@ class AFSession(AutoFocusObject):
                     pass # The client did something stupid, likely a bad query was passed
         Args:
             query str: The query to run against autofocus (will also take dicts per examples)
+            limit Optional[int]: Limit the number of returned results.
 
         Yields:
             AFSession: sample objects as they are paged from the REST service
@@ -1311,7 +1328,7 @@ class AFSession(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for res in AFSessionFactory.scan(query, page_size):
+        for res in AFSessionFactory.scan(query, page_size, limit):
             yield res
 
     @classmethod
@@ -1364,7 +1381,7 @@ class AFSession(AutoFocusObject):
         return AFSessionFactory.count(query)
 
     @classmethod
-    def search(cls, query, sort_by = "tstamp", sort_order = "asc"):
+    def search(cls, query, sort_by="tstamp", sort_order="asc", limit=0):
         """
 
         The AFSession.search method is a factory to return AFSession object instances.
@@ -1403,6 +1420,7 @@ class AFSession(AutoFocusObject):
             query str:The query to run against autofocus (will also take dicts per examples)
             sort_by Optional[str]: The field to sort results by
             sort_order Optional[str]; asc or desc sort order
+            limit Optional[int]: Limit the number of returned results.
 
         Yields:
             AFSession: sample objects as they are paged from the REST service
@@ -1413,7 +1431,7 @@ class AFSession(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for res in AFSessionFactory.search(query, sort_by, sort_order):
+        for res in AFSessionFactory.search(query, sort_by, sort_order, limit):
             yield res
 
 
@@ -1431,24 +1449,24 @@ class AFSessionFactory(AutoFocusAPI):
         return cls._api_count("/sessions/search", query, None)
 
     @classmethod
-    def scan(cls, query, page_size):
+    def scan(cls, query, page_size, limit=0):
         """
         Notes: See AFSession.scan documentation
         """
 
-        for res in cls._api_scan("/sessions/search", query, None, page_size, None):
+        for res in cls._api_scan("/sessions/search", query, None, page_size, None, limit):
             try:
                 yield AFSession(**res['_source'])
             except _InvalidSampleData as e:
                 get_logger().debug(e, exc_info=True)
 
     @classmethod
-    def search(cls, query, sort_by, sort_order):
+    def search(cls, query, sort_by, sort_order, limit=0):
         """
         Notes: See AFSession.search documentation
         """
 
-        for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order, None):
+        for res in cls._api_search("/sessions/search", query, None, sort_by, sort_order, None, limit):
             yield AFSession(session_id = res.get('_id'), **res['_source'])
 
 
@@ -1588,7 +1606,7 @@ class AFSampleFactory(AutoFocusAPI):
                 yield sample
 
     @classmethod
-    def search(cls, query, scope, sort_by, sort_order, attributes):
+    def search(cls, query, scope, sort_by, sort_order, attributes, limit=0):
         """
         Notes: See AFSample.search documentation
         """
@@ -1603,7 +1621,7 @@ class AFSampleFactory(AutoFocusAPI):
 
                 fields.append(AFSample.attributes_to_known_fields[attr])
 
-        for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order, fields):
+        for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order, fields, limit):
             try:
                 if attributes:
                     res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
@@ -1622,7 +1640,7 @@ class AFSampleFactory(AutoFocusAPI):
         return cls._api_count("/samples/search", query, scope)
 
     @classmethod
-    def scan(cls, query, scope, page_size, attributes):
+    def scan(cls, query, scope, page_size, attributes, limit=0):
         """
         Notes: See AFSample.scan documentation
         """
@@ -1637,7 +1655,7 @@ class AFSampleFactory(AutoFocusAPI):
 
                 fields.append(AFSample.attributes_to_known_fields[attr])
 
-        for res in cls._api_scan("/samples/search", query, scope, page_size, fields):
+        for res in cls._api_scan("/samples/search", query, scope, page_size, fields, limit):
             try:
                 if attributes:
                     res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
@@ -1926,7 +1944,7 @@ class AFSample(AutoFocusObject):
         return AFSampleFactory.count(query, scope)
 
     @classmethod
-    def scan(cls, query, scope = "global", page_size = 10000, attributes = None):
+    def scan(cls, query, scope="global", page_size=10000, attributes=None, limit=0):
         """
 
         The AFSample.scan method is a factory to return AFSample object instances. These correspond to values returned
@@ -1969,6 +1987,7 @@ class AFSample(AutoFocusObject):
             query str:The query to run against autofocus (will also take dicts per examples)
             scope Optional[str]:The scope of the search you're running. Defaults to "global"
             attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
+            limit Optional[int]: Limit the numder of returned results.
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -1980,7 +1999,7 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.scan(query, scope, page_size, attributes):
+        for sample in AFSampleFactory.scan(query, scope, page_size, attributes, limit):
             yield sample
 
     @classmethod
@@ -2032,7 +2051,7 @@ class AFSample(AutoFocusObject):
             yield sample
 
     @classmethod
-    def search(cls, query, scope = "global", sort_by = "create_date", sort_order = "asc", attributes = None):
+    def search(cls, query, scope="global", sort_by="create_date", sort_order="asc", attributes=None, limit=0):
         """
 
         The AFSample.search method is a factory to return AFSample object instances. These correspond to values returned
@@ -2075,6 +2094,7 @@ class AFSample(AutoFocusObject):
             sort_by Optional[str]: The field to sort results by
             sort_order Optional[str]; asc or desc sort order
             attributes Optional[str]: A str or list of strs for attributes to be included in the results. Defaults to all attributes
+            limit Optional[int]: Limit the numder of returned results.
 
         Yields:
             AFSample: sample objects as they are paged from the REST service
@@ -2086,7 +2106,7 @@ class AFSample(AutoFocusObject):
             AFServerError: In the case that the client did something unexpected
 
         """
-        for sample in AFSampleFactory.search(query, scope, sort_by, sort_order, attributes):
+        for sample in AFSampleFactory.search(query, scope, sort_by, sort_order, attributes, limit):
             yield sample
 
     # TODO: Convenience method to handle searching multiple hashes (do crazy paging to get more than 100 or 10000)
