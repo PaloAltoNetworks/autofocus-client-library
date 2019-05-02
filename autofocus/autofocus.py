@@ -212,6 +212,14 @@ class _InvalidAnalysisData(Exception):
 
 
 class AutoFocusObject(object):
+
+    def __init__(self, **kwargs):
+        for k, v in list(kwargs.items()):
+            setattr(self, k, v)
+
+    def __str__(self):
+        return json.dumps(self.serialize())
+
     def serialize(self, depth=1, include_all=True):
         """ Converts object to a dictionary representation. Depending on combination
             of depth and include_all parameters, performance on serialization may suffer,
@@ -246,7 +254,7 @@ class AutoFocusObject(object):
                     blacklist.append(k)
 
         # serialize
-        for k, v in obj_attrs.items():
+        for k, v in list(self.__dict__.items()):
 
             # ignore private and blacklisted
             if k.startswith("_") or k in blacklist:
@@ -297,7 +305,7 @@ class AutoFocusAPI(object):
     The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for
     general use and is core to this underlying client library
     """
-    api_key = None
+    api_key = AF_APIKEY
     page_size = 2000
 
     def __init__(self, **kwargs):
@@ -311,12 +319,10 @@ class AutoFocusAPI(object):
         return self.__dict__.__str__()
 
     @classmethod
-    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None):
+    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None, api_key=None):
 
-        if not AutoFocusAPI.api_key:
-            AutoFocusAPI.api_key = AF_APIKEY
-
-        if not AutoFocusAPI.api_key:
+        api_key = api_key or AutoFocusAPI.api_key
+        if not api_key:
             raise AFClientError("API key is not set. Library requires AutoFocusAPI.api_key to be set, or apikey "
                                 "to be provided via configuration file.")
 
@@ -338,6 +344,8 @@ class AutoFocusAPI(object):
                                  e.message, path, af_cookie)
             if e_code_skips < 3:
                 return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
+            raise AFServerError("AF ConnectionError: {} - path:{} af_cookie:{}".format(
+                                e.message, path, af_cookie), None)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
