@@ -10,9 +10,3 @@ test:
   script:
   - pip install tox flake8
   - tox
-  
-artifactory:
-  script:
-  - pip install -U twine
-  - python3 setup.py sdist
-  - twine upload dist/*

@@ -3,8 +3,9 @@ import requests
 from . import mock_json
 import pprint
 
-API_HOST = 'SET HOST'
+API_HOST = 'autofocus.paloaltonetworks.com'
 HEADERS = {"content-type": "application/json"}
+BASE_PATH = "/api/v1.0"
 
 mock_list = []
 
@@ -57,30 +58,30 @@ def fallback(url, request):
 
 
 @register_mock
-@urlmatch(netloc=API_HOST, path="/conn_error")
+@urlmatch(netloc=API_HOST, path=BASE_PATH + "/conn_error")
 def conn_error(url, request):
     raise requests.exceptions.ConnectionError()
 
 
 @register_mock
-@urlmatch(netloc=API_HOST, path='/test/200')
+@urlmatch(netloc=API_HOST, path=BASE_PATH + '/test/200')
 def simple_200(url, request):
     return response(200, {"message": "got test 200"}, HEADERS, None, 5, request)
 
 
 @register_mock
-@urlmatch(netloc=API_HOST, path='/test/300')
+@urlmatch(netloc=API_HOST, path=BASE_PATH + '/test/300')
 def simple_300(url, request):
     return response(300, {"message": "got test 300"}, HEADERS, None, 5, request)
 
 
 @register_mock
-@urlmatch(netloc=API_HOST, path='/test/400')
+@urlmatch(netloc=API_HOST, path=BASE_PATH + '/test/400')
 def simple_400(url, request):
     return response(400, {"message": "got test 400"}, HEADERS, None, 5, request)
 
 
 @register_mock
-@urlmatch(netloc=API_HOST, path='/test/500')
+@urlmatch(netloc=API_HOST, path=BASE_PATH + '/test/500')
 def simple_500(url, request):
     return response(500, {"message": "got test 500"}, HEADERS, None, 5, request)
