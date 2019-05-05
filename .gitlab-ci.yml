@@ -15,3 +15,15 @@ test:
         - mkdir ~/.config
         - echo -e "[autofocus]\napikey=${AF_API_KEY}" > ~/.config/panw
         - tox
+
+pypi:
+    stage: pypi
+    script:
+        - pip3 install -U twine wheel
+        - python3 setup.py bdist_wheel
+        - twine upload dist/*
+        # Triger a rebuild of the tools container
+        - curl -X POST -F token=bbbd5b8ee425f3ad32a03a91ee4cc9 -F ref=master https://gitlab.gsrt.paloaltonetworks.local/api/v4/projects/54/trigger/pipeline
+    only:
+        - master-python3
+
