@@ -341,11 +341,11 @@ class AutoFocusAPI(object):
                                  allow_redirects=False, verify=SSL_VERIFY, cert=SSL_CERT)
         except requests.ConnectionError as e:
             get_logger().warning("AF ConnectionError: %s - path:%s af_cookie:%s",
-                                 e.message, path, af_cookie)
+                                 str(e), path, af_cookie)
             if e_code_skips < 3:
                 return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
             raise AFServerError("AF ConnectionError: {} - path:{} af_cookie:{}".format(
-                                e.message, path, af_cookie), None)
+                                str(e), path, af_cookie), None)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
@@ -373,7 +373,7 @@ class AutoFocusAPI(object):
                     if e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                     else:
-                        raise AFServerError(e.message, resp)
+                        raise AFServerError(str(e.message), resp)
                 except Exception:
                     pass
 
