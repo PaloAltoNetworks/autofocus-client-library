@@ -1,4 +1,4 @@
-image: docker-gsrt-tech.af.paloaltonetworks.local/base-images/alpine:latest
+image: docker-gsrt-tech.af.paloaltonetworks.local/base-image/alpine:latest
 
 stages:
     - test
