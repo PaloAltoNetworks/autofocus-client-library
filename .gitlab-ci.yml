@@ -11,5 +11,5 @@ before_script:
 test:
     stage: test
     script:
-        - pip install tox flake8
+        - pip install tox flake8 pytest
         - tox
