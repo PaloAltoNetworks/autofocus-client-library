@@ -12,5 +12,6 @@ test:
     stage: test
     script:
         - pip install tox flake8 pytest
-        - echo -e "[autofocus]\napikey=${AF_API_KEY}" > /etc/panw
+        - mkdir ~/.config
+        - echo -e "[autofocus]\napikey=${AF_API_KEY}" > ~/.config/panw
         - tox
