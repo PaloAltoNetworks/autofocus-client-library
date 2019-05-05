@@ -10,7 +10,7 @@ with open(ver_path) as ver_file:
 
 setup(
 
-    name            =   "AutofocusClientLibrary",
+    name            =   "autofocus-client-library",
     packages        =   ['autofocus'],
     version         =   main_ns['__version__'],
     description     =   'AutoFocus Client Lib',

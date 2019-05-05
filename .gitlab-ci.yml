@@ -1,12 +1,15 @@
-# This file is a template, and might need editing before it works on your project.
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/python/tags/
-image: registry.gsrt.paloaltonetworks.local:5000/gsrttech/playbooks_base:latest
+image: docker-gsrt-tech.af.paloaltonetworks.local/base-images/alpine:latest
+
+stages:
+    - test
+    - build
+    - pypi
 
 before_script:
-  - python -V               # Print out python version for debugging
+  - python3 -V
 
 test:
-  script:
-  - pip install tox flake8
-  - tox
+    stage: test
+    script:
+        - pip install tox flake8
+        - tox

@@ -23,7 +23,7 @@ try:
         # What other tags are in this tag_gropu?
         for tag in tag_group.tags:
 
-            print "{} is in tag group {}".format(tag.public_name, tag_group.name)
+            print("{} is in tag group {}".format(tag.public_name, tag_group.name))
 
         break # We're only curious about the first tag group
 
@@ -36,14 +36,14 @@ except AFTagAbsent:
 try:
     tag_group = AFTagGroup.get("OSX")
 
-    print "{} - {}".format(tag_group.name, tag_group.description)
+    print("{} - {}".format(tag_group.name, tag_group.description))
 
     for tag in tag_group:
 
-        print "{} is in groups:".format(tag.public_name)
+        print("{} is in groups:".format(tag.public_name))
 
         for group in tag.groups: # AFTag.groups is a list of groups the tag belongs to
-            print "- {}".format(group.name)
+            print("- {}".format(group.name))
 
 except AFTagGroupAbsent:
     pass # Tag group doesn't exist
