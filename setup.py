@@ -13,9 +13,11 @@ setup(
     name            =   "autofocus-client-library",
     packages        =   ['autofocus'],
     version         =   main_ns['__version__'],
+    install_requires = ["requests",],
     description     =   'AutoFocus Client Lib',
     author          =   'Ben Small, Pat Litke, Russ Holloway, GSRT',
     author_email    =   'gsrt-tech@paloaltonetworks.com',
     url             =   'https://github.com/PaloAltoNetworks-BD/autofocus-client-library/',
-    classifiers     =   ['Development Status :: 4 - Beta']
+    classifiers     =   ['Development Status :: 4 - Beta'],
+    python_requires = ">3.6"
 )
