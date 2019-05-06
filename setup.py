@@ -19,5 +19,5 @@ setup(
     author_email    =   'gsrt-tech@paloaltonetworks.com',
     url             =   'https://github.com/PaloAltoNetworks-BD/autofocus-client-library/',
     classifiers     =   ['Development Status :: 4 - Beta'],
-    python_requires = ">3.6"
+    python_requires = ">3.4"
 )
