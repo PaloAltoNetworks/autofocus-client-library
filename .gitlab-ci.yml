@@ -4,6 +4,7 @@ stages:
     - test
     - build
     - pypi
+    - post
 
 before_script:
   - python3 -V
@@ -13,7 +14,7 @@ test:
     script:
         - pip install tox flake8 pytest
         - mkdir ~/.config
-        - echo -e "[autofocus]\napikey=${AF_API_KEY}" > ~/.config/panw
+        - echo "$FULL_PANW_CONFIG" > ~/.config/panw
         - tox
 
 pypi:
@@ -22,8 +23,10 @@ pypi:
         - pip3 install -U twine wheel
         - python3 setup.py bdist_wheel
         - twine upload dist/*
-        # Triger a rebuild of the tools container
-        - curl -X POST -F token=bbbd5b8ee425f3ad32a03a91ee4cc9 -F ref=master https://gitlab.gsrt.paloaltonetworks.local/api/v4/projects/54/trigger/pipeline
     only:
         - master-python3
-
+post:
+    stage: post
+    trigger:
+        project: gsrt-tools/gsrt-utilities-container
+        branch: master
