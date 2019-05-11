@@ -13,7 +13,7 @@ test:
     stage: test
     script:
         - pip install tox flake8 pytest
-        - mkdir ~/.config
+        - mkdir -p ~/.config
         - echo "$FULL_PANW_CONFIG" > ~/.config/panw
         - tox
 
