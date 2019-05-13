@@ -34,5 +34,5 @@ build-utilties-container:
 build-overwatch-container:
     stage: post
     trigger:
-        project: gsrt-tools/gsrt-utilities-container
+        project: gsrt-tools/docker-overwatch
         branch: master
