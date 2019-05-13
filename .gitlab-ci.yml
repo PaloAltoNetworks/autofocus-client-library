@@ -25,7 +25,13 @@ pypi:
         - twine upload dist/*
     only:
         - master-python3
-post:
+build-utilties-container:
+    stage: post
+    trigger:
+        project: gsrt-tools/gsrt-utilities-container
+        branch: master
+
+build-overwatch-container:
     stage: post
     trigger:
         project: gsrt-tools/gsrt-utilities-container
