@@ -1,4 +1,4 @@
-image: docker-gsrt-tech.af.paloaltonetworks.local/base-image/phusion:latest
+image: docker-gsrt-tech.af.paloaltonetworks.local/base-image/gitlabci:latest
 
 stages:
     - test
@@ -12,14 +12,12 @@ before_script:
 test:
     stage: test
     script:
-        - pip install tox flake8 pytest
         - mkdir -p ~/.config
         - echo "$FULL_PANW_CONFIG" > ~/.config/panw
         - tox
 pypi:
     stage: pypi
     script:
-        - pip3 install -U twine wheel
         - python3 setup.py bdist_wheel
         - twine upload dist/*
     only:
@@ -27,6 +25,7 @@ pypi:
             - master-python3
         changes:
             - "*/version.py"
+            - ".gitlab-ci.yml"
 
 #build-utilties-container:
 #    stage: post
@@ -49,3 +48,4 @@ build-overwatch-container:
             - master-python3
         changes:
             - "*/version.py"
+            - ".gitlab-ci.yml"
