@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, date
 from .version import __version__
 
+print("My ninja for realz")
 
 def get_logger():
     """ To change log level from calling code, use something like

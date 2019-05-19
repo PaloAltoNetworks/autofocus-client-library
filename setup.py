@@ -1,6 +1,6 @@
 #! /usr/bin/env python2.7
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from distutils.util import convert_path
 
 main_ns = {}
@@ -11,13 +11,13 @@ with open(ver_path) as ver_file:
 setup(
 
     name            =   "autofocus-client-library",
-    packages        =   ['autofocus'],
+    packages         = find_packages(),
     version         =   main_ns['__version__'],
     install_requires = ["requests",],
     description     =   'AutoFocus Client Lib',
-    author          =   'Ben Small, Pat Litke, Russ Holloway, GSRT',
+    author          =   'GSRT Tech',
     author_email    =   'gsrt-tech@paloaltonetworks.com',
     url             =   'https://github.com/PaloAltoNetworks-BD/autofocus-client-library/',
     classifiers     =   ['Development Status :: 4 - Beta'],
-    python_requires = ">3.4"
+    python_requires = ">=3.4"
 )

@@ -1,4 +1,4 @@
-image: docker-gsrt-tech.af.paloaltonetworks.local/base-image/alpine:latest
+image: docker-gsrt-tech.af.paloaltonetworks.local/base-image/phusion:latest
 
 stages:
     - test
@@ -16,7 +16,6 @@ test:
         - mkdir -p ~/.config
         - echo "$FULL_PANW_CONFIG" > ~/.config/panw
         - tox
-
 pypi:
     stage: pypi
     script:
@@ -24,15 +23,29 @@ pypi:
         - python3 setup.py bdist_wheel
         - twine upload dist/*
     only:
-        - master-python3
-build-utilties-container:
-    stage: post
-    trigger:
-        project: gsrt-tools/gsrt-utilities-container
-        branch: master
+        refs:
+            - master-python3
+        changes:
+            - "*/version.py"
+
+#build-utilties-container:
+#    stage: post
+#    trigger:
+#        project: gsrt-tools/gsrt-utilities-container
+#        branch: master
+#    only:
+#        refs:
+#            - master-python3
+#        changes:
+#            - "*/version.py"
 
 build-overwatch-container:
     stage: post
     trigger:
         project: gsrt-tools/docker-overwatch
         branch: master
+    only:
+        refs:
+            - master-python3
+        changes:
+            - "*/version.py"
