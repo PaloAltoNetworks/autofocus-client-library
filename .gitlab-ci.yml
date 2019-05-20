@@ -25,7 +25,6 @@ pypi:
             - master-python3
         changes:
             - "*/version.py"
-            - ".gitlab-ci.yml"
 
 #build-utilties-container:
 #    stage: post
@@ -48,4 +47,3 @@ build-overwatch-container:
             - master-python3
         changes:
             - "*/version.py"
-            - ".gitlab-ci.yml"
