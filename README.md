@@ -1,7 +1,7 @@
 # AutoFocus Client Library
 
-[![pipeline status](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/badges/master-python3/pipeline.svg)](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/commits/master-python3)
-[![pipeline status](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/badges/master-python3/coverage.svg)](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/commits/master-python3)
+[![pipeline status](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/badges/master/pipeline.svg)](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/commits/master)
+[![pipeline status](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/badges/master/coverage.svg)](https://gitlab.gsrt.paloaltonetworks.local/gsrt-tools/autofocus-client-library/commits/master)
 
 ## Install
 

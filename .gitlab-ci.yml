@@ -22,7 +22,7 @@ pypi:
         - twine upload dist/*
     only:
         refs:
-            - master-python3
+            - master
         changes:
             - "*/version.py"
 
@@ -33,7 +33,7 @@ pypi:
 #        branch: master
 #    only:
 #        refs:
-#            - master-python3
+#            - master
 #        changes:
 #            - "*/version.py"
 
@@ -44,6 +44,6 @@ build-overwatch-container:
         branch: master
     only:
         refs:
-            - master-python3
+            - master
         changes:
             - "*/version.py"
