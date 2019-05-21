@@ -12,9 +12,9 @@ try:
     sample = AFSample.get(hash)
 
     # Using instrospection, you can analyze the attributes of the AFSample instance
-    print "Pulled sample {} and got the following attributes".format(hash)
-    for k,v in sample.serialize().items():
-        print "\t{}={}".format(k, v)
+    print("Pulled sample {} and got the following attributes".format(hash))
+    for k,v in list(sample.serialize().items()):
+        print("\t{}={}".format(k, v))
 
 except AFSampleAbsent:
     pass # The sample isn't in AutoFocus
@@ -31,7 +31,7 @@ query = '{"operator":"all","children":[{"field":"sample.malware","operator":"is"
 #   and parse the results
 for sample in AFSample.search(query):
     # sample is an instance of AFSample
-    print sample.sha256
+    print(sample.sha256)
     break
 
 #################################
@@ -59,17 +59,17 @@ search_terms = {
 for sample in AFSample.search(search_terms):
 
     # Do cool things with sample
-    print "{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size)
+    print("{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size))
 
 # You can do the same thing but using a built in helper like this:
 
 for sample in AFSample.list(hashes):
     # Do cool things with sample
-    print "{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size)
+    print("{} is of file type {} and is {} bytes large".format(sample.sha256, sample.file_type, sample.size))
 
 # You can also specify attributes that you want it to return like this:
 
 
 for sample in AFSample.list(hashes, attributes=["sha256", "size"]):
     # Do cool things with sample
-    print "{} is {} bytes large".format(sample.sha256, sample.size)
+    print("{} is {} bytes large".format(sample.sha256, sample.size))

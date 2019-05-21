@@ -8,8 +8,7 @@ import requests
 import time
 import logging
 from datetime import datetime, date
-from version import __version__
-
+from .version import __version__
 
 def get_logger():
     """ To change log level from calling code, use something like
@@ -30,14 +29,14 @@ SSL_VERIFY = True
 SSL_CERT = None
 
 try:
-    import ConfigParser
+    import configparser
     defaults = {
         "apikey": "",
         "ssl_verify": 'true',
         "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
         "ignore_warnings": 'false',
     }
-    parser = ConfigParser.ConfigParser(defaults=defaults)
+    parser = configparser.ConfigParser(defaults=defaults)
     conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
     parser.read(os.path.expanduser(conf_path))
 
@@ -61,7 +60,7 @@ try:
         pass
 
 except Exception as e:
-    print e
+    print(e)
     get_logger().warning("Error reading configuration file %s." % conf_path)
 
 
@@ -212,6 +211,14 @@ class _InvalidAnalysisData(Exception):
 
 
 class AutoFocusObject(object):
+
+    def __init__(self, **kwargs):
+        for k, v in list(kwargs.items()):
+            setattr(self, k, v)
+
+    def __str__(self):
+        return json.dumps(self.serialize())
+
     def serialize(self, depth=1, include_all=True):
         """ Converts object to a dictionary representation. Depending on combination
             of depth and include_all parameters, performance on serialization may suffer,
@@ -246,7 +253,7 @@ class AutoFocusObject(object):
                     blacklist.append(k)
 
         # serialize
-        for k, v in obj_attrs.items():
+        for k, v in list(self.__dict__.items()):
 
             # ignore private and blacklisted
             if k.startswith("_") or k in blacklist:
@@ -297,11 +304,11 @@ class AutoFocusAPI(object):
     The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for
     general use and is core to this underlying client library
     """
-    api_key = None
+    api_key = AF_APIKEY
     page_size = 2000
 
     def __init__(self, **kwargs):
-        for k, v in kwargs.items():
+        for k, v in list(kwargs.items()):
             setattr(self, k, v)
 
     def __repr__(self):
@@ -311,12 +318,10 @@ class AutoFocusAPI(object):
         return self.__dict__.__str__()
 
     @classmethod
-    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None):
+    def _api_request(cls, path, post_data={}, params={}, e_code_skips=0, af_cookie=None, api_key=None):
 
-        if not AutoFocusAPI.api_key:
-            AutoFocusAPI.api_key = AF_APIKEY
-
-        if not AutoFocusAPI.api_key:
+        api_key = api_key or AutoFocusAPI.api_key
+        if not api_key:
             raise AFClientError("API key is not set. Library requires AutoFocusAPI.api_key to be set, or apikey "
                                 "to be provided via configuration file.")
 
@@ -335,9 +340,11 @@ class AutoFocusAPI(object):
                                  allow_redirects=False, verify=SSL_VERIFY, cert=SSL_CERT)
         except requests.ConnectionError as e:
             get_logger().warning("AF ConnectionError: %s - path:%s af_cookie:%s",
-                                 e.message, path, af_cookie)
+                                 str(e), path, af_cookie)
             if e_code_skips < 3:
                 return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
+            raise AFServerError("AF ConnectionError: {} - path:{} af_cookie:{}".format(
+                                str(e), path, af_cookie), None)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
@@ -365,7 +372,7 @@ class AutoFocusAPI(object):
                     if e_code_skips < 3:
                         return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
                     else:
-                        raise AFServerError(e.message, resp)
+                        raise AFServerError(str(e.message), resp)
                 except Exception:
                     pass
 
@@ -592,11 +599,11 @@ class AutoFocusAPI(object):
             }
 
         if fields:
-            if type(fields) is str or type(fields) is unicode:
+            if type(fields) is str or type(fields) is str:
                 fields = [fields]
             post_data['fields'] = fields
 
-        if type(query) is str or type(query) is unicode:
+        if type(query) is str or type(query) is str:
             post_data['query'] = json.loads(query)
         elif type(query) is dict:
             if 'field' in query:
@@ -810,7 +817,7 @@ class AFTag(AutoFocusObject):
         #: Priveate _references
         self._references = kwargs.get("refs", NotLoaded())
 
-        if type(self._references) in (str, unicode):
+        if type(self._references) in (str, str):
             self.references = []
             if not self._references == "null":
                 try:
@@ -1613,7 +1620,7 @@ class AFSampleFactory(AutoFocusAPI):
 
         fields = []
         if attributes:
-            if type(attributes) in (str, unicode):
+            if type(attributes) in (str, str):
                 attributes = [attributes]
             for attr in attributes:
                 if attr not in AFSample.attributes_to_known_fields:
@@ -1624,7 +1631,7 @@ class AFSampleFactory(AutoFocusAPI):
         for res in cls._api_search("/samples/search", query, scope, sort_by, sort_order, fields, limit):
             try:
                 if attributes:
-                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
+                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,str) else [attributes]
                 if 'sha256' not in res['_source']:
                     res['_source']['sha256'] = res['_id']
                 yield AFSample(**res['_source'])
@@ -1647,7 +1654,7 @@ class AFSampleFactory(AutoFocusAPI):
 
         fields = []
         if attributes:
-            if type(attributes) in (str, unicode):
+            if type(attributes) in (str, str):
                 attributes = [attributes]
             for attr in attributes:
                 if attr not in AFSample.attributes_to_known_fields:
@@ -1658,7 +1665,7 @@ class AFSampleFactory(AutoFocusAPI):
         for res in cls._api_scan("/samples/search", query, scope, page_size, fields, limit):
             try:
                 if attributes:
-                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,unicode) else [attributes]
+                    res['_source']['_limit_attributes_to'] = attributes if type(attributes) not in (str,str) else [attributes]
                 if 'sha256' not in res['_source']:
                     res['_source']['sha256'] = res['_id']
                 yield AFSample(**res['_source'])
@@ -1686,7 +1693,7 @@ class AFSampleFactory(AutoFocusAPI):
             elif len(hash) == 64:
                 query['field'] = "sample.sha256"
 
-            res = AFSample.search(query, attributes = attributes).next()
+            res = next(AFSample.search(query, attributes = attributes))
         except _InvalidSampleData:
             raise AFSampleAbsent("Sample data is incomplete in AutoFocus")
         except StopIteration:
@@ -1748,7 +1755,7 @@ class AFSample(AutoFocusObject):
         """
 
         if kwargs.get('_limit_attributes_to', []):
-            for attribute, field in self.__class__.attributes_to_known_fields.items():
+            for attribute, field in list(self.__class__.attributes_to_known_fields.items()):
                 if attribute not in kwargs['_limit_attributes_to'] and field not in kwargs:
                     kwargs[field] = NotLoaded()
 
@@ -1881,7 +1888,7 @@ class AFSample(AutoFocusObject):
         elif type(value) is NotLoaded:
 
             new_sample = AFSample.get(self.sha256)
-            for k,v in new_sample.__dict__.items():
+            for k,v in list(new_sample.__dict__.items()):
                 object.__setattr__(self, k, v)
                 if k == attr:
                     value = v if not isinstance(v, NotLoaded) else None
@@ -2194,7 +2201,7 @@ class AFSample(AutoFocusObject):
 
         coverages = []
 
-        for cov_cat, cov_rows in resp_data.get("coverage", {}).items():
+        for cov_cat, cov_rows in list(resp_data.get("coverage", {}).items()):
 
             if cov_cat in ("latest_versions"):
                 continue
@@ -2266,7 +2273,7 @@ class AFSample(AutoFocusObject):
                 continue
 
             #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
-            for platform in resp_data[section].keys():
+            for platform in list(resp_data[section].keys()):
                 for data in resp_data[section][platform]:
                     # TODO: remove try catch when all analyses types are normalized
                     try:
@@ -2304,7 +2311,7 @@ class AFSample(AutoFocusObject):
 class AutoFocusCoverage(AutoFocusObject):
 
     def __init__(self, obj_data):
-        for k, v in obj_data.items():
+        for k, v in list(obj_data.items()):
             setattr(self, k, v)
 
     @classmethod
@@ -2315,7 +2322,7 @@ class AutoFocusCoverage(AutoFocusObject):
 class AutoFocusAnalysis(AutoFocusObject):
 
     def __init__(self, obj_data):
-        for k, v in obj_data.items():
+        for k, v in list(obj_data.items()):
             setattr(self, k, v)
 
     @classmethod
@@ -4245,11 +4252,11 @@ _analysis_2_class_map['elf_command_action'] = AFELFCommandAction
 _analysis_2_class_map['elf_suspicious_action'] = AFELFSuspiciousActionMonitored
 _analysis_2_class_map['macro'] = AFRelatedMacro
 
-for k, v in _analysis_2_class_map.items():
+for k, v in list(_analysis_2_class_map.items()):
     _class_2_analysis_map[v] = k
     v.__autofocus_section = k
 
-for k, v in _coverage_2_class_map.items():
+for k, v in list(_coverage_2_class_map.items()):
     _class_2_coverage_map[v] = k
     v.__autofocus_section = k
 

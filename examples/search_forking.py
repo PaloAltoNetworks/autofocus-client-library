@@ -3,7 +3,7 @@ from autofocus import AFSample
 
 def search_hash(hash):
 
-    print "Searching for {}".format(hash)
+    print("Searching for {}".format(hash))
 
     query = {
         "operator": "all",
@@ -19,8 +19,8 @@ def search_hash(hash):
     query['children'][0]['value'] = hash
 
     for sample in AFSample.search(query):
-        print "sha256:{} md5:{} m:{} b:{} g:{}"\
-            .format(sample.sha256, sample.md5, sample.malware, sample.benign, sample.grayware)
+        print("sha256:{} md5:{} m:{} b:{} g:{}"\
+            .format(sample.sha256, sample.md5, sample.malware, sample.benign, sample.grayware))
         break
 
     return None
@@ -42,4 +42,4 @@ if __name__ == "__main__":
 
     pool = multiprocessing.Pool(4)
     pool.map(search_hash, hashes_to_find)
-    print "Already done!"
+    print("Already done!")

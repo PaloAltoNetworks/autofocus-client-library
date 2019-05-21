@@ -4,3 +4,9 @@ dist/
 
 *.pyc
 *.egg-info
+__pycache__/
+.cache/
+tests/.coverage
+tests/htmlcov
+AutofocusClientLibrary.egg-info
+.tox/

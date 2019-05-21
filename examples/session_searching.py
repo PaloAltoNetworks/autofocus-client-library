@@ -24,10 +24,10 @@ query = """
 
 # session is an instance of AFSession
 for session in AFSession.search(query):
-    print "to:{} from:{} charset:{} subject:{}".format(
+    print("to:{} from:{} charset:{} subject:{}".format(
         session.email_recipient,
         session.email_sender,
         session.email_charset,
         # Sometimes there is unicode data in the responses, be sure to set utf-8 encoding when printing, see the charset attribute
         session.email_subject.encode("utf-8") if session.email_charset.lower() == "utf-8" else session.email_subject
-    )
+    ))
