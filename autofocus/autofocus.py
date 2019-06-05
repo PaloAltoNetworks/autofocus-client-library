@@ -269,7 +269,7 @@ class AutoFocusObject(object):
                     elif isinstance(item, (datetime, date)):
                         serialized_array.append(item.isoformat())
                     elif isinstance(item, decimal.Decimal):
-                        serialized_array.append("%.1f" % item)
+                        serialized_array.append(f"{item:.1f}")
                     elif isinstance(item, (str, int, dict)):
                         serialized_array.append(item)
 
@@ -293,7 +293,7 @@ class AutoFocusObject(object):
                 if isinstance(v, (datetime, date)):
                     serialized[k] = v.isoformat()
                 elif isinstance(v, decimal.Decimal):
-                    serialized[k] = "%.1f" % v
+                    serialized[k] = f"{v:.1f}"
                 else:
                     serialized[k] = v
 
@@ -344,8 +344,7 @@ class AutoFocusAPI(object):
                                  str(e), path, af_cookie)
             if e_code_skips < 3:
                 return cls._api_request(path, post_data, params, e_code_skips + 1, af_cookie)
-            raise AFServerError("AF ConnectionError: {} - path:{} af_cookie:{}".format(
-                                str(e), path, af_cookie), None)
+            raise AFServerError(f"AF ConnectionError: {e} - path:{path} af_cookie:{af_cookie}",  None)
 
         get_logger().debug("Response [%s]: %s", resp.status_code, resp._content)
 
@@ -354,7 +353,7 @@ class AutoFocusAPI(object):
             message = resp._content
 
             if af_cookie:
-                message = "AF_COOKIE - {}\n{}".format(af_cookie, message)
+                message = f"AF_COOKIE - {af_cookie}\n{message}"
 
             if 300 <= resp.status_code < 400:
                 raise AFRedirectError("Unexpected redirect", resp)
@@ -404,8 +403,8 @@ class AutoFocusAPI(object):
             try:
                 resp_data = resp.json()
             except TypeError:
-                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
-                    af_cookie, resp._content), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent"
+                                    f"malformed JSON response {resp._content}", resp)
 
             if resp_data.get('af_complete_percentage', 100) == 100:
                 return resp_data['total']
@@ -413,7 +412,7 @@ class AutoFocusAPI(object):
             try:
                 sleeper.sleep()
             except GrauduatingSleepError:
-                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nTimed out while pulling results", resp)
 
     @classmethod
     def _api_agg_request(cls, path, post_data):
@@ -434,8 +433,8 @@ class AutoFocusAPI(object):
             try:
                 resp_data = resp.json()
             except TypeError:
-                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
-                    af_cookie, resp._content), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent "
+                                    f"malformed JSON response {resp._content}", resp)
 
             if resp_data.get('af_complete_percentage', 100) == 100:
                 return resp_data['aggregations']
@@ -443,7 +442,7 @@ class AutoFocusAPI(object):
             try:
                 sleeper.sleep()
             except GrauduatingSleepError:
-                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nTimed out while pulling results", resp)
 
     @classmethod
     def _api_scan_request(cls, path, post_data):
@@ -470,14 +469,14 @@ class AutoFocusAPI(object):
             try:
                 resp_data = resp.json()
             except Exception:
-                raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
-                    af_cookie, resp._content), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent "
+                                    f"malformed JSON response {resp._content}", resp)
 
             # We should always have 'af_in_progress' in resp_data.
             # 'total' in the resp_data
             if 'af_in_progress' not in resp_data:
-                raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(
-                    af_cookie), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent malformed response, missing af_in_progress",
+                                    resp)
 
             # Here for debugging purposes
             # prev_resp_data = resp_data
@@ -491,20 +490,19 @@ class AutoFocusAPI(object):
             if not resp_data['af_in_progress']:
 
                 if 'total' not in resp_data:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, "
-                                        "query complete but no total information in resp".format(af_cookie), resp)
+                    raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent malformed response, "
+                                        "query complete but no total information in resp", resp)
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
-                    raise AFServerError("AF_COOKIE - {}\nExpecting {} results, but actually got "
-                                        "{} while scanning".format(af_cookie, resp_data['total'], actual_res_count),
-                                        resp)
+                    raise AFServerError(f"AF_COOKIE - {af_cookie}\nExpecting {resp_data['total']} results, "
+                                        f"but actually got {actual_res_count} while scanning", resp)
                 return
 
             try:
                 sleeper.sleep()
             except GrauduatingSleepError:
-                raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
+                raise AFServerError(f"AF_COOKIE - {af_cookie}\nTimed out while pulling results", resp)
 
     @classmethod
     def _api_search_request(cls, path, post_data):
@@ -548,14 +546,14 @@ class AutoFocusAPI(object):
                 try:
                     resp_data = resp.json()
                 except Exception:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed JSON response {}".format(
-                        af_cookie, resp._content), resp)
+                    raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent malformed JSON response {resp._content}",
+                                        resp)
 
                 # We should always have 'af_in_progress' in resp_data.
                 # 'total' in the resp_data
                 if 'af_in_progress' not in resp_data:
-                    raise AFServerError("AF_COOKIE - {}\nServer sent malformed response, missing af_in_progress".format(
-                        af_cookie), resp)
+                    raise AFServerError(f"AF_COOKIE - {af_cookie}\nServer sent malformed response, "
+                                        "missing af_in_progress", resp)
 
                 sample_count_in_results = len(resp_data.get('hits', []))
 
@@ -576,7 +574,7 @@ class AutoFocusAPI(object):
                 try:
                     sleeper.sleep()
                 except GrauduatingSleepError:
-                    raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
+                    raise AFServerError(f"AF_COOKIE - {af_cookie}\nTimed out while pulling results", resp)
 
             if not resp_data.get('hits', None):
                 return
@@ -737,7 +735,7 @@ class AFTag(AutoFocusObject):
             try:
                 last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
             except Exception:
-                get_logger().warning("Couldn't parse last hit time on tag {}".format(self.public_name))
+                get_logger().warning("Couldn't parse last hit time on tag %s", self.public_name)
                 last_hit = None
 
         #: Optional[datetime]: the last time there was activity witnessed for the tag
@@ -748,7 +746,7 @@ class AFTag(AutoFocusObject):
             try:
                 created = datetime.strptime(created, '%Y-%m-%d %H:%M:%S')
             except Exception:
-                get_logger().warning("Couldn't parse created time on tag {}".format(self.public_name))
+                get_logger().warning("Couldn't parse created time on tag %s", self.public_name)
                 created = None
 
         #: Optional[datetime]: the datetime the tag was created
@@ -759,7 +757,7 @@ class AFTag(AutoFocusObject):
             try:
                 updated = datetime.strptime(updated, '%Y-%m-%d %H:%M:%S')
             except Exception:
-                get_logger().warning("Couldn't parse updated time on tag {}".format(self.public_name))
+                get_logger().warning("Couldn't parse updated time on tag %s", self.public_name)
                 updated = None
 
         #: Optional[datetime]: the datetime the tag was updated
@@ -1162,7 +1160,7 @@ class AFTagGroupFactory(AutoFocusAPI):
         tags = AFTagFactory.get_tags_by_group(group_name)
 
         if not tags:
-            raise AFTagGroupAbsent("Unable to find tag group {}".format(group_name))
+            raise AFTagGroupAbsent(f"Unable to find tag group {group_name}")
 
         group = [v for v in tags[0].groups if v.name == group_name][0]
 
@@ -1512,7 +1510,7 @@ class AFTelemetryFactory(AutoFocusAPI):
                 "dir": sort_order
             }
 
-            resp = AutoFocusAPI._api_request("/telemetry/{}/search".format(time_frame), post_data=post_data)
+            resp = AutoFocusAPI._api_request(f"/telemetry/{time_frame}/search", post_data=post_data)
 
             resp_data = resp.json()
 
@@ -1552,7 +1550,7 @@ class AFTelemetryAggregateFactory(AutoFocusAPI):
         ]
 
         if not agg_by not in valid_aggs:
-            raise AFClientError("agg_by should be in the following list: {}".format(",".join(valid_aggs)))
+            raise AFClientError(f"agg_by should be in the following list: {','.join(valid_aggs)}")
 
         page = 1
         page_size = 1000
@@ -1568,7 +1566,7 @@ class AFTelemetryAggregateFactory(AutoFocusAPI):
                 "dir": sort_order
             }
 
-            resp = AutoFocusAPI._api_request("/telemetry/{}".format(agg_by), post_data=post_data)
+            resp = AutoFocusAPI._api_request(f"/telemetry/{agg_by}", post_data=post_data)
 
             resp_data = resp.json()
 
@@ -1632,7 +1630,7 @@ class AFSampleFactory(AutoFocusAPI):
                 attributes = [attributes]
             for attr in attributes:
                 if attr not in AFSample.attributes_to_known_fields:
-                    raise AFClientError("Unknown attribute: {}".format(attr))
+                    raise AFClientError(f"Unknown attribute: {attr}")
 
                 fields.append(AFSample.attributes_to_known_fields[attr])
 
@@ -1667,7 +1665,7 @@ class AFSampleFactory(AutoFocusAPI):
                 attributes = [attributes]
             for attr in attributes:
                 if attr not in AFSample.attributes_to_known_fields:
-                    raise AFClientError("Unknown attribute: {}".format(attr))
+                    raise AFClientError(f"Unknown attribute: {attr}")
 
                 fields.append(AFSample.attributes_to_known_fields[attr])
 
@@ -2276,8 +2274,8 @@ class AFSample(AutoFocusObject):
 
             if not af_analysis_class:
                 if section != 'truncated_sections':
-                    get_logger().warning("Was expecting a known section in analysis_class_map, got {} instead\n".format(
-                        section))
+                    get_logger().warning("Was expecting a known section in analysis_class_map, got %s instead\n",
+                                         section)
                 continue
 
             #            for platform in resp_data['platforms']: # staticAnlyzer is being returned by isn't in the set?
