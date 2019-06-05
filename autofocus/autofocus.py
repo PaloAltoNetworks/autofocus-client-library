@@ -496,9 +496,10 @@ class AutoFocusAPI(object):
 
                 if actual_res_count != resp_data['total']:
                     # Sanity check
-                    raise AFServerError("AF_COOKIE - {}\nExpecting {} results, but actually got {} while scanning".format(
-                        af_cookie, resp_data['total'], actual_res_count), resp)
-                raise StopIteration()
+                    raise AFServerError("AF_COOKIE - {}\nExpecting {} results, but actually got "
+                                        "{} while scanning".format(af_cookie, resp_data['total'], actual_res_count),
+                                        resp)
+                return
 
             try:
                 sleeper.sleep()
@@ -516,13 +517,13 @@ class AutoFocusAPI(object):
         while True:
 
             if search_complete:
-                raise StopIteration()
+                return
 
             # Trim the page for the 4k limit on regular searches
             if "type" not in post_data:
 
                 if post_data['from'] >= 4000:
-                    raise StopIteration()
+                    return
 
                 if post_data['from'] + post_data['size'] > 4000:
                     post_data['size'] = 4000 - post_data['from']
@@ -576,7 +577,7 @@ class AutoFocusAPI(object):
                     raise AFServerError("AF_COOKIE - {}\nTimed out while pulling results".format(af_cookie), resp)
 
             if not resp_data.get('hits', None):
-                raise StopIteration()
+                return
 
             yield resp_data
 
