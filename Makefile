@@ -1,35 +1,30 @@
-.PHONEY: test testsimple watch shell python
+.PHONEY: test
 
 cur_dir := $(notdir $(shell pwd))
 
 test:
-	docker run --rm -it --mount src=$(shell pwd),target=/opt/overwatch/env/src/$(cur_dir),type=bind \
-		       -w /opt/overwatch/env/src/$(cur_dir) \
-			   registry.gsrt.paloaltonetworks.local:5000/gsrttech/playbooks_base \
-			   /opt/overwatch/env/bin/tox
+	docker run --rm -it --mount src=$(shell pwd),target=/tmp/$(cur_dir),type=bind \
+			   -v ~/.config/panw:/root/.config/panw \
+		       -w /tmp/$(cur_dir) \
+			   docker-gsrt-tech.af.paloaltonetworks.local/base-image/gitlabci:latest \
+			   tox
 
-testsimple:
-	docker run --rm --mount src=$(shell pwd),target=/opt/overwatch/env/src/$(cur_dir),type=bind \
-		       -w /opt/overwatch/env/src/$(cur_dir) \
-			   registry.gsrt.paloaltonetworks.local:5000/gsrttech/playbooks_base \
-			   /opt/overwatch/env/bin/tox
-
-watch:
-	fswatch -0 -o tests/test_*.py | xargs -0 -n 1 -I{} make testsimple
 
 shell:
 	# Run bash with active venv
-	docker run --rm -it --mount src=$(shell pwd),target=/opt/overwatch/env/src/$(cur_dir),type=bind \
-		       -w /opt/overwatch/env/src/$(cur_dir) \
-			   registry.gsrt.paloaltonetworks.local:5000/gsrttech/playbooks_base \
-			   /bin/bash -c "source /opt/overwatch/env/bin/activate;/bin/bash"
+	docker run --rm -it --mount src=$(shell pwd),target=/tmp/$(cur_dir),type=bind \
+			   -v ~/.config/panw:/root/.config/panw \
+		       -w /tmp/$(cur_dir) \
+			   docker-gsrt-tech.af.paloaltonetworks.local/base-image/gitlabci:latest \
+			   /bin/bash -c "/bin/bash"
 
 python:
 	# Run venv python
-	docker run --rm -it --mount src=$(shell pwd),target=/opt/overwatch/env/src/$(cur_dir),type=bind \
-		       -w /opt/overwatch/env/src/$(cur_dir) \
-			   registry.gsrt.paloaltonetworks.local:5000/gsrttech/playbooks_base \
-			   /opt/overwatch/env/bin/python
+	docker run --rm -it --mount src=$(shell pwd),target=/tmp/$(cur_dir),type=bind \
+			   -v ~/.config/panw:/root/.config/panw \
+		       -w /tmp/$(cur_dir) \
+			   docker-gsrt-tech.af.paloaltonetworks.local/base-image/gitlabci:latest \
+			   python3
 
 cov:
 	open -a "Google Chrome" tests/htmlcov/index.html
