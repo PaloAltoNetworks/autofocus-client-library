@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 import decimal
 import json
-import math
-import os
 import re
 import requests
 import time
 import logging
 from datetime import datetime, date
 from .version import __version__
+try:
+    from .gsrt_config import GSRTConfig
+except ImportError:
+    from gsrt_config import GSRTConfig
 
 
 def get_logger():
@@ -29,40 +31,28 @@ SHOW_WARNINGS = False
 SSL_VERIFY = True
 SSL_CERT = None
 
+defaults = {
+    "apikey": "",
+    "ssl_verify": 'true',
+    "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
+    "ignore_warnings": 'false',
+}
+gconfig = GSRTConfig("autofocus", defaults=defaults)
+AF_APIKEY = gconfig.get("apikey")
+SSL_VERIFY = gconfig.getboolean("ssl_verify")
+_base_url = gconfig.get("api_base")
+ignore_warnings = gconfig.getboolean("ignore_warnings")
+SHOW_WARNINGS = False if ignore_warnings else True
+
+if SHOW_WARNINGS:
+    get_logger().setLevel(logging.WARNING)
+else:
+    get_logger().setLevel(logging.ERROR)
+
 try:
-    import configparser
-    defaults = {
-        "apikey": "",
-        "ssl_verify": 'true',
-        "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
-        "ignore_warnings": 'false',
-    }
-    parser = configparser.ConfigParser(defaults=defaults)
-    conf_path = os.environ.get("PANW_CONFIG", "~/.config/panw")
-    parser.read(os.path.expanduser(conf_path))
-
-    if not parser.has_section("autofocus"):
-        parser.add_section("autofocus")
-
-    AF_APIKEY = parser.get("autofocus", "apikey")
-    SSL_VERIFY = parser.getboolean("autofocus", "ssl_verify")
-    _base_url = parser.get("autofocus", "api_base")
-    ignore_warnings = parser.getboolean("autofocus", "ignore_warnings")
-    SHOW_WARNINGS = False if ignore_warnings else True
-
-    if SHOW_WARNINGS:
-        get_logger().setLevel(logging.WARNING)
-    else:
-        get_logger().setLevel(logging.ERROR)
-
-    try:
-        SSL_CERT = parser.get("autofocus", "ssl_cert")
-    except Exception:
-        pass
-
-except Exception as e:
-    print(e)
-    get_logger().warning("Error reading configuration file %s." % conf_path)
+    SSL_CERT = gconfig.get("autofocus", "ssl_cert")
+except Exception:
+    pass
 
 
 # Useful information:

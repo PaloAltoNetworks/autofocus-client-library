@@ -15,6 +15,7 @@ test:
         - mkdir -p ~/.config
         - echo "$FULL_PANW_CONFIG" > ~/.config/panw
         - tox
+
 pypi:
     stage: pypi
     script:
