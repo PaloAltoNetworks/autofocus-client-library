@@ -1,5 +1,12 @@
 # AutoFocus Client Library
 
+## Python Compatibility
+
+Python2 is end of life as of January 2020. We've converted this library to be compatibly with python3 only. If you need the python2 version of this library, you can install from the `python-2` tag as follows:
+`git checkout tags/python-2; python setup install`
+
+If you try to install this version in python2, you'll get an error about requirements not being satisfied.
+
 ## Install
 
 ```
