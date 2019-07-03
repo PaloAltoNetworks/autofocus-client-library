@@ -30,6 +30,7 @@ AF_APIKEY = None
 SHOW_WARNINGS = False
 SSL_VERIFY = True
 SSL_CERT = None
+_base_url = "https://autofocus.paloaltonetworks.com/api/v1.0"
 
 defaults = {
     "apikey": "",
