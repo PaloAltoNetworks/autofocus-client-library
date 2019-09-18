@@ -8,9 +8,11 @@ import os
 # without an immediate hard blocker if they have a long python3 road ahead of them (aka, WF team)
 # Also, it's an incredibly basic module so writing this blurb was more effort than adding compatibility.
 try:
-    import configparser
-except ImportError:
     import ConfigParser as configparser
+    py2 = True
+except ImportError:
+    import configparser
+    py2 = False
 
 # Need to pull data from env variables > kube secret > config file
 
@@ -23,7 +25,8 @@ class GSRTConfig(object):
     variable OVERWATCH_APIKEY={some apikey}
     """
 
-    def __init__(self, config_section, defaults=None, config_path=None, secrets_dir=None, throw_exception=False):
+    def __init__(self, config_section, defaults=None, config_path=None, secrets_dir=None,
+                 throw_exception=False, allow_no_value=True):
         """
         Config files will be checked in /etc/panw be default. If a PANW_CONFIG env exists, it will pull the path from
         there When setting variable values, make sure that you can have an ALL_CAPS setting that will work without
@@ -38,7 +41,8 @@ class GSRTConfig(object):
 
         self.secrets_dir = secrets_dir
 
-        self.parser = configparser.ConfigParser(defaults=defaults)
+        # GSRTTECH-5222
+        self.parser = configparser.ConfigParser(defaults, allow_no_value=allow_no_value)
 
         if not config_path and 'PANW_CONFIG' in os.environ:
             config_path = os.environ.get('PANW_CONFIG')
@@ -51,7 +55,12 @@ class GSRTConfig(object):
 
         self.config_path = config_path
 
-        self.parser.read(os.path.expanduser(config_path))
+        # Only read the file if the config_path is a true value
+        if config_path:
+            if os.path.isfile(config_path):
+                self.parser.read(os.path.expanduser(config_path))
+            else:
+                raise Exception("PANW_CONFIG=%s is not a valid file" % config_path)
 
         # We'll stub out a blank section in case it doesn't exist, this prevents exceptions from being thrown
         if not self.parser.has_section(config_section):
@@ -96,18 +105,11 @@ class GSRTConfig(object):
 
         value = self.get_setting(*args, **kwargs)
 
-        if isinstance(value, int):
-            return bool(value)
-        elif isinstance(value, bool):
-            return value
-        elif isinstance(value, str):
-            value = value.lower()
-            if value in ["1", "yes", "on", "true"]:
-                return True
-            elif value in ["0", "no", "off", "false"]:
-                return False
-            else:
-                raise ValueError("unexpected value '%s' provided" % value)
+        value = str(value).lower()
+        if value in ["1", "yes", "on", "true"]:
+            return True
+        elif value in ["0", "no", "off", "false"]:
+            return False
         else:
             raise ValueError("unexpected value '%s' provided" % value)
 
@@ -136,9 +138,11 @@ class GSRTConfig(object):
             return os.environ.get(env_key)
 
         if self.secrets_dir:
-            if os.path.isfile(self.secrets_dir + section + "_" + name):
-                with open(self.secrets_dir + name, "r") as fh:
-                    return "".join(fh.readlines()).rstrip("\r\n").rstrip("\n")
+            secrets_file = os.path.join(self.secrets_dir,
+                                        "{}_{}".format(section, name))
+            if os.path.isfile(secrets_file):
+                with open(secrets_file, "r") as fh:
+                    return fh.read().rstrip()
 
         if throw_exception is None:
             throw_exception = self.throw_exception
@@ -151,5 +155,11 @@ class GSRTConfig(object):
         if throw_exception:
             return self.parser.get(section, name)
 
-        return self.parser.get(section, name, fallback=None)
-# Automatically updated on Tue Jul  2 19:06:39 UTC 2019
+        if py2:
+            try:
+                return self.parser.get(section, name)
+            except configparser.NoOptionError:
+                return None
+        else:
+            return self.parser.get(section, name, fallback=None)
+# Automatically updated on Fri Sep 13 19:41:36 UTC 2019

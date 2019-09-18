@@ -10,8 +10,15 @@ If you try to install this version in python2, you'll get an error about require
 ## Install
 
 ```
+pip install autofocus-client-library
+```
+
+or
+
+```
 sudo ./setup.py install
 ```
+
 
 ### Config File
 Remember to create the file `~/.config/panw` and add the following section to it (note the lack of spaces and quotes)
