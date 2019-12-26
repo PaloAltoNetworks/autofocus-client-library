@@ -72,16 +72,18 @@ class BaseRequest:
 
     async def _async_http_post(self):
         session = self.async_request.session
-        ssl_context = None
-        if self.cert:
+        if self.verify_ssl and not self.cert:
+            ssl_context = None  # aiohttp creates a default context
+        elif self.cert and self.verify_ssl:
             ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert)
+        else:
+            ssl_context = False  # No ssl check
         try:
             if not session:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(self.url, params=self.params, headers=self.headers,
                                             data=json.dumps(self.post_data),
-                                            allow_redirects=self.allow_redirects, ssl=self.verify_ssl,
-                                            ssl_context=ssl_context) as resp:
+                                            allow_redirects=self.allow_redirects, ssl=ssl_context) as resp:
                         return {
                             "content": await resp.text(),
                             "json": await resp.json(),
@@ -89,7 +91,7 @@ class BaseRequest:
                         }
             async with session.post(self.url, params=self.params, headers=self.headers,
                                     data=json.dumps(self.post_data), allow_redirects=self.allow_redirects,
-                                    ssl=self.verify_ssl, ssl_context=ssl_context) as resp:
+                                    ssl=ssl_context) as resp:
                 return {
                     "content": await resp.text(),
                     "json": await resp.json(),
