@@ -19,6 +19,78 @@ from ..exceptions import ServerError
 from ..version import __version__
 
 
+class ClassPropertyMeta(type):
+    def __setattr__(self, key, value):
+        obj = self.__dict__.get(key, None)
+        if type(obj) is classproperty:
+            return obj.__set__(self, value)
+        return super().__setattr__(key, value)
+
+
+class classproperty(object):
+    """
+    Similar to @property but used on classes instead of instances.
+    The only caveat being that your class must use the
+    classproperty.meta metaclass.
+    Class properties will still work on class instances unless the
+    class instance has overidden the class default. This is no different
+    than how class instances normally work.
+    Derived from: https://stackoverflow.com/a/5191224/721519
+    class Z(object, metaclass=classproperty.meta):
+        @classproperty
+        def foo(cls):
+            return 123
+        _bar = None
+        @classproperty
+        def bar(cls):
+            return cls._bar
+        @bar.setter
+        def bar(cls, value):
+            return cls_bar = value
+    Z.foo  # 123
+    Z.bar  # None
+    Z.bar = 222
+    Z.bar  # 222
+    """
+
+    meta = ClassPropertyMeta
+
+    def __init__(self, fget, fset=None):
+        self.fget = self._fix_function(fget)
+        self.fset = None if fset is None else self._fix_function(fset)
+
+    def __get__(self, instance, owner=None):
+        if not issubclass(type(owner), ClassPropertyMeta):
+            raise TypeError(
+                f"Class {owner} does not extend from the required "
+                f"ClassPropertyMeta metaclass"
+            )
+        return self.fget.__get__(None, owner)()
+
+    def __set__(self, owner, value):
+        if not self.fset:
+            raise AttributeError("can't set attribute")
+        if type(owner) is not ClassPropertyMeta:
+            owner = type(owner)
+        return self.fset.__get__(None, owner)(value)
+
+    def setter(self, fset):
+        self.fset = self._fix_function(fset)
+        return self
+
+    _fn_types = (type(__init__), classmethod, staticmethod)
+
+    @classmethod
+    def _fix_function(cls, fn):
+        if not isinstance(fn, cls._fn_types):
+            raise TypeError("Getter or setter must be a function")
+        # Always wrap in classmethod so we can call its __get__ and not
+        # have to deal with difference between raw functions.
+        if not isinstance(fn, (classmethod, staticmethod)):
+            return classmethod(fn)
+        return fn
+
+
 class RetryRequest(Exception):
     pass
 
@@ -713,11 +785,22 @@ class AggRequest(SearchRequest):
         return resp_data['aggregations']
 
 
-class AutoFocusAPI(BaseFactory):
+class AutoFocusAPI(BaseFactory, metaclass=classproperty.meta):
     """
     The AutoFocusAPI is a base class for factory classes in this module to inherit from. This class is not meant for
     general use and is core to this underlying client library
     """
+
+    @classproperty
+    def api_key(cls):
+        """Proxy access to the API key to the APIRequest class to maintain backward compatibility"""
+        return APIRequest.api_key
+
+    @api_key.setter
+    def api_key(cls, value):
+        """Proxy access to the API key to the APIRequest class to maintain backward compatibility"""
+        APIRequest.api_key = value
+
     def _api_request(self, path, post_data=None):
         return APIRequest(path, post_data=post_data or {}, async_request=self.async_request).run()
 
