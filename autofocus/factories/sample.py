@@ -59,10 +59,10 @@ class SampleFactory(AutoFocusAPI):
 
         sha_lists = []
 
-        def chunks(l, n):
+        def chunks(list_, n):
             res = []
-            for i in range(0, len(l), n):
-                res.append(l[i:i + n])
+            for i in range(0, len(list_), n):
+                res.append(list_[i:i + n])
             return res
 
         sha_lists = chunks(sha256s, 1000)

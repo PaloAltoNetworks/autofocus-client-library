@@ -912,7 +912,7 @@ class MacEmbeddedFile(AutoFocusAnalysis):
     @classmethod
     def _parse_auto_focus_response(cls, platform, service_data):
 
-        line_parts = [l.strip() for l in service_data['line'].split(" , ")]
+        line_parts = [line.strip() for line in service_data['line'].split(" , ")]
         data = {}
         for entry in line_parts:
             if entry:

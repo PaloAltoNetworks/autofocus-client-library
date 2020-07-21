@@ -1,6 +1,6 @@
 from autofocus import AFSample, AFConnectionActivity, AFUserAgentFragment, AFRelatedMacro
 
-#AutoFocusAPI.api_key = "<my API key>"
+# AutoFocusAPI.api_key = "<my API key>"
 
 sample = AFSample.get("8404e06ff383275462298e830bebe9540fab2092eca5523649d74e6e596ac23d")
 
@@ -48,7 +48,7 @@ for analysis in sample.get_analyses(['misc']):
     print(analysis)
 
 # Mutex Analysis
-for sample in AFSample.search({ "field" : "sample.tasks.mutex", "operator" : "has any value", "value" : ""}):
+for sample in AFSample.search({ "field" : "sample.tasks.mutex", "operator" : "has any value", "value" : ""}):  # noqa
     for analysis in sample.get_analyses(['mutex']):
         print(analysis.function_name)
     break
@@ -71,7 +71,7 @@ sample = AFSample.get("21e5053f89c89c6f71e8028f20139f943f75f8d78210404501d79bae8
 for analysis in sample.get_analyses(['dns']):
     print(type(analysis))
 
- #Behavior analysis
+# Behavior analysis
 sample = AFSample.get("438ea5ec331b15cb5bd5bb57b760195734141623d83a03ffd5c6ec7f13ddada9")
 
 for analysis in sample.get_analyses(['behavior_type']):
@@ -81,11 +81,11 @@ for analysis in sample.get_analyses(['behavior_type']):
 for analysis in AFSample.get_analyses_by_hash("bf2f1c68a5e043a1ed83603a0768c3ec9bd49706c5124c692f43db0e35fc0b54", AFRelatedMacro):
     print(analysis)
 
-#Connection testing hashes
+# Connection testing hashes
 test_hashes = (
-    "7a1f5a5fe0a3bd5031da504d67e224f35b96fd1fd9771f67bc0936999d4d292b", # Has udp
-    "90c6cef834a7528e6771959c2e093c230866167eb8d1f16362a5128c0c35694f", # Has tcp-connection, udp-connection
-    "0bb615a781035e4d0143582ea5a0a4c9486625585de1cd8e3a8669cd2a1b29f3"  # Has tcp-listen
+    "7a1f5a5fe0a3bd5031da504d67e224f35b96fd1fd9771f67bc0936999d4d292b",  # Has udp
+    "90c6cef834a7528e6771959c2e093c230866167eb8d1f16362a5128c0c35694f",  # Has tcp-connection, udp-connection
+    "0bb615a781035e4d0143582ea5a0a4c9486625585de1cd8e3a8669cd2a1b29f3"   # Has tcp-listen
 )
 
 # Get a sample by hash

@@ -1,6 +1,7 @@
 import multiprocessing
 from autofocus import AFSample
 
+
 def search_hash(hash):
 
     print("Searching for {}".format(hash))
@@ -11,7 +12,7 @@ def search_hash(hash):
             {
                 "field": "sample.sha256",
                 "operator": "is",
-                "value": None # Will be filled with a hash
+                "value": None  # Will be filled with a hash
             }
         ]
     }
@@ -19,11 +20,11 @@ def search_hash(hash):
     query['children'][0]['value'] = hash
 
     for sample in AFSample.search(query):
-        print("sha256:{} md5:{} m:{} b:{} g:{}"\
-            .format(sample.sha256, sample.md5, sample.malware, sample.benign, sample.grayware))
+        print(f"sha256:{sample.sha256} md5:{sample.md5} m:{sample.malware} b:{sample.benign} g:{sample.grayware}")
         break
 
     return None
+
 
 if __name__ == "__main__":
 

@@ -1,6 +1,6 @@
 from autofocus import AFSession, AutoFocusException, AutoFocusAPI
 
-#AutoFocusAPI.api_key = "<my API key>"
+# AutoFocusAPI.api_key = "<my API key>"
 
 ######################################################
 # Look for email session data for the Rodecap sample #

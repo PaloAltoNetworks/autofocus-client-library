@@ -1,6 +1,6 @@
 from autofocus import AFSample, AFSampleAbsent
 
-#AutoFocusAPI.api_key = "<my API key>"
+# AutoFocusAPI.api_key = "<my API key>"
 
 ###############################
 # Searching for a single hash #
@@ -13,11 +13,11 @@ try:
 
     # Using instrospection, you can analyze the attributes of the AFSample instance
     print("Pulled sample {} and got the following attributes".format(hash))
-    for k,v in list(sample.serialize().items()):
+    for k, v in list(sample.serialize().items()):
         print("\t{}={}".format(k, v))
 
 except AFSampleAbsent:
-    pass # The sample isn't in AutoFocus
+    pass  # The sample isn't in AutoFocus
 
 
 ################################################
@@ -50,9 +50,9 @@ hashes = [
 
 # Build the query for AutoFocus API
 search_terms = {
-    "field" : "sample.sha256",
-    "operator" : "is in the list",
-    "value" : hashes
+    "field": "sample.sha256",
+    "operator": "is in the list",
+    "value": hashes
 }
 
 # Loop through the resulting samples
