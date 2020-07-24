@@ -9,6 +9,7 @@ import requests
 from ..config import AF_APIKEY
 from ..config import SSL_CERT
 from ..config import SSL_VERIFY
+from ..config import HTTP_TIMEOUT
 from ..config import _BASE_URL
 from ..config import get_logger
 from ..exceptions import AutoFocusException
@@ -155,7 +156,8 @@ class BaseRequest:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(self.url, params=self.params, headers=self.headers,
                                             data=json.dumps(self.post_data),
-                                            allow_redirects=self.allow_redirects, ssl=ssl_context) as resp:
+                                            allow_redirects=self.allow_redirects, ssl=ssl_context,
+                                            timeout=HTTP_TIMEOUT) as resp:
                         return {
                             "content": await resp.text(),
                             "json": await resp.json(),
@@ -163,7 +165,7 @@ class BaseRequest:
                         }
             async with session.post(self.url, params=self.params, headers=self.headers,
                                     data=json.dumps(self.post_data), allow_redirects=self.allow_redirects,
-                                    ssl=ssl_context) as resp:
+                                    ssl=ssl_context, timeout=HTTP_TIMEOUT) as resp:
                 return {
                     "content": await resp.text(),
                     "json": await resp.json(),
@@ -175,7 +177,7 @@ class BaseRequest:
     def _http_post(self):
         try:
             resp = requests.post(self.url, params=self.params, headers=self.headers, data=json.dumps(self.post_data),
-                                 allow_redirects=False, verify=self.verify_ssl, cert=self.cert)
+                                 allow_redirects=False, verify=self.verify_ssl, cert=self.cert, timeout=HTTP_TIMEOUT)
             return {
                 'status_code': resp.status_code,
                 'content': resp.text,

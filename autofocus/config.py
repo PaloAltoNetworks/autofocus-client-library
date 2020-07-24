@@ -29,10 +29,12 @@ defaults = {
     "ssl_verify": 'true',
     "api_base": "https://autofocus.paloaltonetworks.com/api/v1.0",
     "ignore_warnings": 'false',
+    "http_timeout": "120"
 }
 gconfig = GSRTConfig("autofocus", defaults=defaults)
 AF_APIKEY = gconfig.get("apikey")
 SSL_VERIFY = gconfig.getboolean("ssl_verify")
+HTTP_TIMEOUT = float(gconfig.get("http_timeout"))
 _BASE_URL = gconfig.get("api_base")
 ignore_warnings = gconfig.getboolean("ignore_warnings")
 SHOW_WARNINGS = False if ignore_warnings else True
