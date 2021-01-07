@@ -191,6 +191,59 @@ class BaseRequest:
             return self._async_http_post()
         return self._http_post()
 
+    async def _async_http_get(self):
+        session = self.async_request.session
+        if self.verify_ssl and not self.cert:
+            ssl_context = None  # aiohttp creates a default context
+        elif self.cert and self.verify_ssl:
+            ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert)
+        else:
+            ssl_context = False  # No ssl check
+        try:
+            if not session:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(self.url, params=self.params, headers=self.headers,
+                                           allow_redirects=self.allow_redirects, ssl=ssl_context,
+                                           timeout=HTTP_TIMEOUT) as resp:
+                        return {
+                            "content": await resp.text(),
+                            "json": await resp.json(),
+                            "status_code": resp.status
+                        }
+            async with session.get(self.url, params=self.params, headers=self.headers,
+                                   allow_redirects=self.allow_redirects,
+                                   ssl=ssl_context, timeout=HTTP_TIMEOUT) as resp:
+                return {
+                    "content": await resp.text(),
+                    "json": await resp.json(),
+                    "status_code": resp.status
+                }
+        except aiohttp.ClientConnectionError as e:
+            raise AFConnectionError(e)
+
+    def _http_get(self):
+        try:
+            resp = requests.get(self.url, params=self.params, headers=self.headers,
+                                allow_redirects=False, verify=self.verify_ssl, cert=self.cert, timeout=HTTP_TIMEOUT)
+
+            try:
+                resp_json = resp.json()
+            except ValueError:
+                # tic summary returns HTML rather than json for 404...
+                resp_json = {}
+            return {
+                'status_code': resp.status_code,
+                'content': resp.text,
+                'json': resp_json
+            }
+        except requests.ConnectionError as e:
+            raise AFConnectionError(e)
+
+    def http_get(self):
+        if self.async_request:
+            return self._async_http_get()
+        return self._http_get()
+
 
 class GraduatingSleep:
 
@@ -298,6 +351,7 @@ class APIRequest(BaseRequest):
 
         self.headers['Content-Type'] = self.headers.get("Content-Type", "application/json")
         self.headers['User-Agent'] = self.headers.get("User-Agent", self.user_agent)
+        self.headers['apiKey'] = self.headers.get("apiKey", self.api_key)
 
         self.post_data["apiKey"] = self.api_key
         self.path = path
@@ -305,6 +359,7 @@ class APIRequest(BaseRequest):
         self.logger.debug(f"Request [{self.url}]: {self.post_data}")
         self.session = kwargs.get("session") or self.session
         self.async_request = kwargs.get("async_request") or self.async_request
+        self.method = kwargs.get("method") or "post"
 
     def _api_request_handle_response(self, resp):
 
@@ -342,7 +397,14 @@ class APIRequest(BaseRequest):
     async def _async_api_request(self):
 
         try:
-            return self._api_request_handle_response(await self.http_post())
+            if self.method == "post":
+                method_func = self.http_post
+            elif self.method == "get":
+                method_func = self.http_get
+            else:
+                raise ClientError("Unsupported http method provided")
+
+            return self._api_request_handle_response(await method_func())
         except RetryRequest as e:
             if self.e_code_skips < 3:
                 self.e_code_skips += 1
@@ -355,7 +417,14 @@ class APIRequest(BaseRequest):
     def _api_request(self):
 
         try:
-            return self._api_request_handle_response(self.http_post())
+            if self.method == "post":
+                resp = self.http_post()
+            elif self.method == "get":
+                resp = self.http_get()
+            else:
+                raise ClientError("Unsupported http method provided")
+
+            return self._api_request_handle_response(resp)
         except RetryRequest as e:
             if self.e_code_skips < 3:
                 self.e_code_skips += 1
@@ -805,6 +874,9 @@ class AutoFocusAPI(BaseFactory, metaclass=classproperty.meta):
 
     def _api_request(self, path, post_data=None):
         return APIRequest(path, post_data=post_data or {}, async_request=self.async_request).run()
+
+    def _api_fetch(self, path, params=None):
+        return APIRequest(path, method="get", params=params, async_request=self.async_request).run()
 
     def _api_count(self, path, query, scope):
         post_data = {"query": query}

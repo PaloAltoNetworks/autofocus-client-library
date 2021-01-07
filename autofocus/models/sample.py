@@ -261,6 +261,15 @@ class Sample(AutoFocusObject):
         from ..factories.coverage import CoverageFactory
         return CoverageFactory().get_coverage_by_hash(self.sha256)
 
+    def get_tic_summary(self):
+        """
+        Notes:
+            Calls the :func:`ThreatIntelFactory.get_tic_summary` class method with the sample's sha256.
+            See documentation there for details.
+        """
+        from ..factories.tic import ThreatIntelFactory
+        return ThreatIntelFactory().get_tic_summary(sha256=self.sha256)
+
     @classmethod
     def get_coverage_by_hash(cls, *args, **kwargs):
         """
@@ -268,6 +277,16 @@ class Sample(AutoFocusObject):
         """
         from ..factories.coverage import CoverageFactory
         return CoverageFactory().get_coverage_by_hash(*args, **kwargs)
+
+    @classmethod
+    def get_tic_summary_by_hash(cls, *args, **kwargs):
+        """
+        Notes:
+            Calls the :func:`ThreatIntelFactory.get_tic_summary` class method with the sample's sha256.
+            See documentation there for details.
+        """
+        from ..factories.tic import ThreatIntelFactory
+        return ThreatIntelFactory().get_tic_summary_by_hash(*args, **kwargs)
 
     @classmethod
     def get_analyses_by_hash(cls, *args, **kwargs):
