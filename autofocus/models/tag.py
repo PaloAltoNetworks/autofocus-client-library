@@ -1,5 +1,4 @@
 import json
-
 from datetime import datetime
 from ..config import get_logger
 from .base import AutoFocusObject
@@ -10,28 +9,38 @@ from ..factories.tag import TagGroupFactory
 
 class TagDefinition(AutoFocusObject):
     def __init__(self, **kwargs):
-
         #: int: count of search results
-        self.count = kwargs["count"]
+        # this used to always be populated, but now it's just missing sometimes since most recent AF API release.
+        # idk if that means count = 0, None, bug?
+        self.count = kwargs.get("count")
 
         last_hit = kwargs.get("lasthit")
         if last_hit:
-            last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+            try:
+                if isinstance(last_hit, str):
+                    last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+                elif isinstance(last_hit, int):
+                    # idk, the non-breaking change for AF API GCP release seems to have this coming as integers now
+                    last_hit = datetime.fromtimestamp(last_hit / 1000)
+            except Exception as e:
+                get_logger().warning(f"Couldn't parse last hit time on tag definition using value {last_hit} "
+                                     f"due to: {str(e)}")
+                last_hit = None
 
         #: Optional[datetime]: the last time there was activity witnessed for the tag search
         self.last_hit = last_hit
 
         #: str: search name
-        self.search_name = kwargs["search_name"]
+        self.search_name = kwargs.get("search_name")
 
         #: int: tag definition search status id
-        self.tag_definition_status_id = kwargs["tag_definition_search_status_id"]
+        self.tag_definition_status_id = kwargs.get("tag_definition_search_status_id")
 
         #: str: tag definition search status
-        self.tag_definition_search_status = kwargs["tag_definition_search_status"]
+        self.tag_definition_search_status = kwargs.get("tag_definition_search_status")
 
         #: str: ui search definition
-        self.ui_search_definition = kwargs["ui_search_definition"]
+        self.ui_search_definition = kwargs.get("ui_search_definition")
 
     def __str__(self):
         return self.ui_search_definition
@@ -40,7 +49,6 @@ class TagDefinition(AutoFocusObject):
 class TagReference(AutoFocusObject):
 
     def __init__(self, **kwargs):
-
         #: datetime: the time the reference was created
         created = kwargs.get("created")
         if created:
@@ -72,20 +80,25 @@ class Tag(AutoFocusObject):
 
     def __init__(self, **kwargs):
         #: str: The shorthand name for a tag
-        self.name = kwargs["tag_name"]
+        self.name = kwargs.get("tag_name")
 
         #: str: The (Unique) name for a tag, used in searches & URLs
-        self.public_name = kwargs["public_tag_name"]
+        self.public_name = kwargs.get("public_tag_name")
 
         #: int: the number of samples matching the tag
-        self.count = kwargs["count"]
+        self.count = kwargs.get("count")
 
         last_hit = kwargs.get('lasthit')
         if last_hit:
             try:
-                last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
-            except Exception:
-                get_logger().warning("Couldn't parse last hit time on tag %s", self.public_name)
+                if isinstance(last_hit, str):
+                    last_hit = datetime.strptime(last_hit, '%Y-%m-%d %H:%M:%S')
+                elif isinstance(last_hit, int):
+                    # idk, the non-breaking change for AF API GCP release seems to have this coming as integers now
+                    last_hit = datetime.fromtimestamp(last_hit / 1000)
+            except Exception as e:
+                get_logger().warning(f"Couldn't parse last hit time on tag {self.public_name} using value {last_hit} "
+                                     f"due to: {str(e)}")
                 last_hit = None
 
         #: Optional[datetime]: the last time there was activity witnessed for the tag
@@ -120,16 +133,16 @@ class Tag(AutoFocusObject):
         self.description = kwargs.get("description", "")
 
         #: str: The definition status for the tag
-        self.status = kwargs["tag_definition_status"]
+        self.status = kwargs.get("tag_definition_status")
 
         #: int: The definition status id for the tag
-        self.status_id = kwargs["tag_definition_status_id"]
+        self.status_id = kwargs.get("tag_definition_status_id")
 
         #: str: The definition scope for the tag
-        self.scope = kwargs["tag_definition_scope"]
+        self.scope = kwargs.get("tag_definition_scope")
 
         #: int: The definition scoe id for the tag
-        self.scope_id = kwargs["tag_definition_scope_id"]
+        self.scope_id = kwargs.get("tag_definition_scope_id")
 
         #: List[TagDefinition]: tag searches
         self.tag_definitions = NotLoaded()

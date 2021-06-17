@@ -9,21 +9,26 @@ import os
 # Also, it's an incredibly basic module so writing this blurb was more effort than adding compatibility.
 try:
     import ConfigParser as configparser
+
     py2 = True
 except ImportError:
     import configparser
+
     py2 = False
+
 
 # Need to pull data from env variables > kube secret > config file
 
 
 class GSRTConfig(object):
-
     """
     Quick module to handle a normalized config pull. Will search environment sections. To use environment varibles
     for invidual settings, the ENV should be named with {SECTION}_{KEY}. So for overwatch apikey, you should set a
     variable OVERWATCH_APIKEY={some apikey}
     """
+
+    env_var_separator = "_"
+    file_var_separator = "_"
 
     def __init__(self, config_section, defaults=None, config_path=None, secrets_dir=None,
                  throw_exception=False, allow_no_value=True):
@@ -117,6 +122,48 @@ class GSRTConfig(object):
         """ backwards compatibility with configparser """
         return self.get_boolean(*args, **kwargs)
 
+    def to_dict(self, section=None, throw_exception=None):
+        """Get all var names and values of a config section.
+
+        Args:
+            section (Optional[str]): Section to get items for. Use default section if None.
+
+        Returns:
+            dict: Dictionary of items for the specified section.
+        """
+        if not section:
+            section = self.config_section
+
+        # ensure section exists - needed here in addition to init for cases where user specifies section in
+        # `get_setting()`
+        if not self.parser.has_section(section):
+            self.parser.add_section(section)
+
+        if throw_exception is None:
+            throw_exception = self.throw_exception
+
+        env_vars = self._enumerate_env_vars(section)
+        if env_vars:
+            data = {}
+            for full_key in env_vars:
+                key = full_key.split(self.env_var_separator, maxsplit=1)[1]
+                data[key] = os.environ.get(full_key)
+            return data
+
+        secrets_dir_vars = self._enumerate_secrets_dir_vars(section)
+        if secrets_dir_vars:
+            data = {}
+            for key, file in secrets_dir_vars:
+                key = key.split(self.file_var_separator, maxsplit=1)[1]
+                data[key] = self._get_file_value(file)
+            return data
+
+        if throw_exception and not self.parser.has_section(section):
+            raise ValueError(f"Section '{section}' doesn't exist")
+
+        keys = list(self.parser[section].keys())
+        return {key: self.get_setting(key, section=section, throw_exception=throw_exception) for key in keys}
+
     def get_setting(self, name, section=None, throw_exception=None):
         """
             Setting names should always be lower_case_underscore
@@ -133,16 +180,14 @@ class GSRTConfig(object):
         if not section:
             section = self.config_section
 
-        env_key = section.upper() + "_" + name.upper()
-        if env_key in os.environ:
-            return os.environ.get(env_key)
+        if self._env_key_exists(name, section):
+            return self._get_from_env_var(name=name, section=section)
 
         if self.secrets_dir:
-            secrets_file = os.path.join(self.secrets_dir,
-                                        "{}_{}".format(section, name))
-            if os.path.isfile(secrets_file):
-                with open(secrets_file, "r") as fh:
-                    return fh.read().rstrip()
+            try:
+                return self._get_from_secrets_dir(name, section)
+            except FileNotFoundError:
+                pass
 
         if throw_exception is None:
             throw_exception = self.throw_exception
@@ -162,4 +207,112 @@ class GSRTConfig(object):
                 return None
         else:
             return self.parser.get(section, name, fallback=None)
-# Automatically updated on Tue Jul 21 16:05:28 UTC 2020
+
+    def _enumerate_env_vars(self, section):
+        """Get all the envrionment variables for a section.
+
+        Args:
+            section (str): The name of the section to enumerate.
+
+        Returns:
+            list: names of all the enrionment variables in the specified section.
+        """
+        prefix = section.upper() + self.env_var_separator
+        return [v for v in list(os.environ.keys()) if v.startswith(prefix)]
+
+    def _enumerate_secrets_dir_vars(self, section):
+        """Get all the secrets dir variables for a section.
+
+        Returns:
+            list(tuple(str)): Names and paths of all the secrets dir file variables in the specified section.
+        """
+        files = []
+        prefix = section + self.file_var_separator
+        if self.secrets_dir:
+            for file in os.listdir(self.secrets_dir):
+                full_path = os.path.join(self.secrets_dir, file)
+                if os.path.isfile(full_path) and file.startswith(prefix):
+                    files.append((file, full_path))
+        return files
+
+    def _env_key_exists(self, name, section):
+        """Does an environment vairable env var exist?
+
+        Args:
+            name (str): Name of the variable.
+            section (str): Name of the section for the variable.
+
+        Returns:
+            bool: Does the var exist?
+        """
+        return self._build_env_key(name, section) in os.environ.keys()
+
+    def _build_env_key(self, name, section):
+        """Create a full env var based on the name and section.
+
+        Args:
+            name (str): Name of the variable.
+            section (str): Name of the section for the variable.
+
+        Returns:
+            str: The full name of the env var.
+        """
+        return section.upper() + self.env_var_separator + name.upper()
+
+    def _build_file_key(self, name, section):
+        """Create a full file name var based on the name and section.
+
+        Args:
+            name (str): Name of the variable.
+            section (str): Name of the section for the variable.
+
+        Returns:
+            str: The full name of the file name var.
+        """
+        return section.upper() + self.file_var_separator + name.upper()
+
+    def _get_from_env_var(self, key=None, name=None, section=None):
+        """Get a value from an environment variable.
+
+        Must provide either key, or name and section.
+
+        Args:
+            key Optional(str): Name of the key to fetch
+            name Optional(str): Name of the variable.
+            section Optional(str): Name of the section for the variable.
+
+        Returns:
+            The value of the environment variable.
+        """
+        if not key:
+            if name and section:
+                key = self._build_env_key(name, section)
+        return os.environ.get(key)
+
+    def _get_file_value(self, path):
+        """Read and clean the value of file.
+
+        Args:
+            path (str): Path to the file.
+
+        Returns:
+            str: The content of the file.
+        """
+        with open(path, "r") as fh:
+            return fh.read().rstrip()
+
+    def _get_from_secrets_dir(self, name, section):
+        """Get a value from a secrets dir file.
+
+        Args:
+            name (str): Name of the variable.
+            section (str): Name of the section for the variable.
+
+        Returns:
+            str: Content of the file specified by the name and section, based in the specified secrets_dir.
+        """
+        secrets_file = os.path.join(self.secrets_dir,
+                                    "{}_{}".format(section, name))
+
+        return self._get_file_value(secrets_file)
+# Automatically updated on Thu 17 Jun 2021 03:58:52 PM UTC
